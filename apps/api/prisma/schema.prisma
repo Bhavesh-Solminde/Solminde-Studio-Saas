@@ -624,6 +624,35 @@ model Tombstone {
   @@map("tombstones")
 }
 
+/// The server-side outbound message outbox (WhatsApp, later SMS).
+///
+/// A send is recorded here first with status 'queued', then a provider dispatch
+/// flips it to 'sent'. Modelling it as a table — rather than firing a network
+/// call inline — is what lets a POS-triggered message be queued offline and
+/// dispatched on sync, and lets a failed send be retried without losing it. The
+/// provider itself is behind an interface, so the stub used in development swaps
+/// for a live WhatsApp BSP with no change here.
+model Message {
+  id          String    @id @default(uuid()) @db.Uuid
+  tenantId    String    @db.Uuid
+  // 'whatsapp' | 'sms'
+  channel     String    @default("whatsapp")
+  toPhone     String
+  // 'booking_confirm' | 'reminder_24h' | 'bill_pdf' | 'birthday'
+  template    String
+  payload     Json?
+  // 'queued' | 'sent' | 'failed'
+  status      String    @default("queued")
+  providerRef String?
+  /// Idempotency key when the message originates from a POS outbox op.
+  opId        String?   @db.Uuid
+  createdAt   DateTime  @default(now())
+  sentAt      DateTime?
+
+  @@index([tenantId, status])
+  @@map("messages")
+}
+
 /// Overdrafts, negative stock and permission violations detected on sync.
 /// Surfaced on the Exceptions screen — never silently dropped.
 model SyncException {

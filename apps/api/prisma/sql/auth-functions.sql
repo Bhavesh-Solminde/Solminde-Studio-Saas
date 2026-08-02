@@ -56,7 +56,31 @@ AS $$
   LIMIT 1;
 $$;
 
+-- The public booking page has no login and therefore no tenant context, but it
+-- must resolve a salon from its slug to show services and take a booking. Same
+-- fail-closed problem as login, same narrow fix: one SECURITY DEFINER function
+-- that returns only the handful of non-sensitive fields a public site needs.
+CREATE OR REPLACE FUNCTION app_public_tenant(p_slug text)
+RETURNS TABLE (
+  tenant_id uuid,
+  name      text,
+  timezone  text,
+  status    text
+)
+LANGUAGE sql
+SECURITY DEFINER
+STABLE
+SET search_path = public
+AS $$
+  SELECT t.id, t.name, t.timezone, t.status
+  FROM tenants t
+  WHERE t.slug = p_slug
+  LIMIT 1;
+$$;
+
 REVOKE ALL ON FUNCTION app_login_lookup(text, text) FROM PUBLIC;
 REVOKE ALL ON FUNCTION app_refresh_lookup(text) FROM PUBLIC;
+REVOKE ALL ON FUNCTION app_public_tenant(text) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION app_login_lookup(text, text) TO salon_app;
 GRANT EXECUTE ON FUNCTION app_refresh_lookup(text) TO salon_app;
+GRANT EXECUTE ON FUNCTION app_public_tenant(text) TO salon_app;

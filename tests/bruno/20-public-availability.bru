@@ -1,0 +1,42 @@
+meta {
+  name: Public Availability
+  type: http
+  seq: 20
+}
+
+get {
+  url: {{baseUrl}}/api/public/{{tenantSlug}}/availability?serviceId=aaaaaaaa-0000-4000-8000-000000000001&date={{availDate}}
+  body: none
+  auth: none
+}
+
+script:pre-request {
+  // A fresh far-future day per run, so accumulated bookings from earlier runs
+  // never exhaust the single seeded chair and leave availability empty.
+  const d = new Date(Date.now() + (365 + Math.floor(Math.random() * 3650)) * 86400000);
+  bru.setEnvVar("availDate", d.toISOString().slice(0, 10));
+}
+
+script:post-response {
+  if (res.body.slots && res.body.slots.length > 0) {
+    bru.setEnvVar("publicSlot", res.body.slots[0].startAt);
+  }
+  bru.setEnvVar("publicPhone", "96" + Math.floor(10000000 + Math.random() * 89999999));
+}
+
+assert {
+  res.status: eq 200
+}
+
+tests {
+  test("availability is reachable without a login and returns slots", function () {
+    expect(res.body.slots).to.be.an("array");
+    expect(res.body.slots.length).to.be.greaterThan(0);
+  });
+}
+
+docs {
+  The booking page has no login. This route resolves the salon from its slug via
+  a narrow SECURITY DEFINER function (the same fail-closed pattern as login) and
+  computes live slot availability — a chair must be free for a slot to be offered.
+}

@@ -1,0 +1,38 @@
+meta {
+  name: Public Booking
+  type: http
+  seq: 21
+}
+
+post {
+  url: {{baseUrl}}/api/public/{{tenantSlug}}/book
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "customerName": "Bruno Online",
+    "customerPhone": "{{publicPhone}}",
+    "serviceId": "aaaaaaaa-0000-4000-8000-000000000001",
+    "startAt": "{{publicSlot}}"
+  }
+}
+
+assert {
+  res.status: eq 201
+}
+
+tests {
+  test("an online booking creates an appointment and returns its id", function () {
+    expect(res.body.appointmentId).to.be.a("string");
+    expect(res.body.startAt).to.be.a("string");
+  });
+}
+
+docs {
+  A walk-in books with no login. The customer is upserted by phone, a free chair
+  is assigned, the appointment is created with source 'online', and a
+  booking_confirm message is queued — all inside the salon's RLS scope resolved
+  from the slug.
+}

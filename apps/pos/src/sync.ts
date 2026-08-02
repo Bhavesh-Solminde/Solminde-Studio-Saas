@@ -4,6 +4,7 @@ import {
   getCursor,
   nextLocalSeq,
   setCursor,
+  type LocalAppointment,
   type LocalCustomer,
   type LocalProduct,
   type LocalService,
@@ -180,6 +181,8 @@ async function clearPending(op: OutboxOp | undefined): Promise<void> {
     await db.customers.update(payload.id, { pending: false });
   } else if (op.type === 'bill.create' && payload?.id) {
     await db.bills.update(payload.id, { pending: false });
+  } else if (op.type === 'appointment.book' && payload?.id) {
+    await db.appointments.update(payload.id, { pending: false });
   }
 }
 
@@ -189,7 +192,7 @@ export async function pull(): Promise<void> {
 
   const since = await getCursor();
   const url = new URL(`${API}/api/sync/pull`);
-  url.searchParams.set('tables', 'customers,services,products');
+  url.searchParams.set('tables', 'customers,services,products,appointments');
   if (since) url.searchParams.set('since', since);
 
   const res = await fetch(url, { headers: authHeaders() });
@@ -200,6 +203,7 @@ export async function pull(): Promise<void> {
       customers?: LocalCustomer[];
       services?: (LocalService & { updatedAt: string })[];
       products?: (LocalProduct & { updatedAt: string })[];
+      appointments?: (LocalAppointment & { startAt: string; endAt: string; updatedAt: string })[];
     };
     tombstones: { tableName: string; rowId: string }[];
     cursor: string;
@@ -222,11 +226,24 @@ export async function pull(): Promise<void> {
   for (const product of body.changes.products ?? []) {
     await db.products.put({ ...product, updatedAt: new Date(product.updatedAt).getTime() });
   }
+  for (const appt of body.changes.appointments ?? []) {
+    const existing = await db.appointments.get(appt.id);
+    // Never clobber a locally-booked appointment still waiting to sync.
+    if (existing?.pending) continue;
+    await db.appointments.put({
+      ...appt,
+      startAt: new Date(appt.startAt).getTime(),
+      endAt: new Date(appt.endAt).getTime(),
+      updatedAt: new Date(appt.updatedAt).getTime(),
+      pending: false,
+    });
+  }
 
   for (const tombstone of body.tombstones) {
     if (tombstone.tableName === 'customers') await db.customers.delete(tombstone.rowId);
     if (tombstone.tableName === 'services') await db.services.delete(tombstone.rowId);
     if (tombstone.tableName === 'products') await db.products.delete(tombstone.rowId);
+    if (tombstone.tableName === 'appointments') await db.appointments.delete(tombstone.rowId);
   }
 
   await setCursor(body.cursor);

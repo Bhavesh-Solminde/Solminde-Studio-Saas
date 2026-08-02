@@ -55,6 +55,7 @@ async function main() {
       // Fixed catalogue ids so the billing tests can reference them directly.
       serviceId: 'aaaaaaaa-0000-4000-8000-000000000001',
       productId: 'bbbbbbbb-0000-4000-8000-000000000001',
+      resourceId: '99999999-0000-4000-8000-000000000001',
       // Stage 3: two stylists on DIFFERENT commission rules, so a test can bill
       // the same service under each and prove the numbers stay separate.
       ruleAId: 'cccccccc-0000-4000-8000-000000000001',
@@ -74,6 +75,7 @@ async function main() {
       password: 'rival-dev-password',
       serviceId: 'aaaaaaaa-0000-4000-8000-000000000002',
       productId: 'bbbbbbbb-0000-4000-8000-000000000002',
+      resourceId: '99999999-0000-4000-8000-000000000002',
       ruleAId: 'cccccccc-0000-4000-8000-000000000003',
       ruleBId: 'cccccccc-0000-4000-8000-000000000004',
       staffAId: 'dddddddd-0000-4000-8000-000000000003',
@@ -293,6 +295,13 @@ async function main() {
           walletCredit: 600000,
         },
         update: { walletCredit: 600000 },
+      });
+
+      // A bookable resource (styling chair) for appointment conflict checking.
+      await tx.resource.upsert({
+        where: { id: spec.resourceId },
+        create: { id: spec.resourceId, tenantId: spec.id, name: 'Chair 1', type: 'chair' },
+        update: { name: 'Chair 1' },
       });
     });
 

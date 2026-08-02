@@ -177,6 +177,16 @@ export class SyncService {
           take: 500,
         });
       }
+      // Appointments flow BOTH ways: booked on the POS and pushed up, but also
+      // booked online and pulled DOWN — which is how an online booking blocks
+      // the slot on the front desk's screen.
+      if (tables.includes('appointments')) {
+        changes.appointments = await tx.appointment.findMany({
+          where: { updatedAt: { gt: cursor } },
+          orderBy: { updatedAt: 'asc' },
+          take: 500,
+        });
+      }
 
       // Deletes are never hard deletes, or clients can never learn about them.
       const tombstones = await tx.tombstone.findMany({

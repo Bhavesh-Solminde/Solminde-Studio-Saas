@@ -25,6 +25,20 @@ import { MembershipPurchaseHandler } from './billing/membership-purchase.handler
 import { AuditService } from './audit/audit.service.js';
 import { CommissionService } from './commissions/commission.service.js';
 import { CommissionsController } from './commissions/commissions.controller.js';
+import { AppointmentService } from './appointments/appointment.service.js';
+import { AvailabilityService } from './appointments/availability.service.js';
+import { PublicBookingController } from './appointments/public-booking.controller.js';
+import { AppointmentBookHandler } from './appointments/appointment-book.handler.js';
+import { AppointmentCancelHandler } from './appointments/appointment-cancel.handler.js';
+import {
+  MESSAGING_PROVIDER,
+  StubMessagingProvider,
+} from './messaging/messaging.provider.js';
+import { MessagingService } from './messaging/messaging.service.js';
+import { WhatsappSendHandler } from './messaging/whatsapp-send.handler.js';
+import { MessagesController } from './messaging/messages.controller.js';
+import { PAYMENT_PROVIDER, StubPaymentProvider } from './payments/payment.provider.js';
+import { PaymentsController } from './payments/payments.controller.js';
 
 @Controller()
 class HealthController {
@@ -38,7 +52,7 @@ class HealthController {
   @Get('health')
   async health() {
     await this.prisma.$queryRaw`SELECT 1`;
-    return { ok: true, stage: 3 };
+    return { ok: true, stage: 4 };
   }
 }
 
@@ -55,6 +69,9 @@ const OP_HANDLERS = [
   DayCloseHandler,
   PackagePurchaseHandler,
   MembershipPurchaseHandler,
+  AppointmentBookHandler,
+  AppointmentCancelHandler,
+  WhatsappSendHandler,
 ];
 
 @Module({
@@ -64,6 +81,9 @@ const OP_HANDLERS = [
     SyncController,
     BillingController,
     CommissionsController,
+    PublicBookingController,
+    PaymentsController,
+    MessagesController,
   ],
   providers: [
     PrismaService,
@@ -75,6 +95,11 @@ const OP_HANDLERS = [
     InvoiceLeaseService,
     AuditService,
     CommissionService,
+    AppointmentService,
+    AvailabilityService,
+    MessagingService,
+    { provide: MESSAGING_PROVIDER, useClass: StubMessagingProvider },
+    { provide: PAYMENT_PROVIDER, useClass: StubPaymentProvider },
     SyncService,
     ...OP_HANDLERS,
     {

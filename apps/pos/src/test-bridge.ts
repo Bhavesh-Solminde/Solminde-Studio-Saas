@@ -1,6 +1,7 @@
 import { db, getLocalBalance, pendingOpCount } from './db';
 import { API, authHeaders, createCustomer, currentSession, getTerminalId, syncNow } from './sync';
 import { createBill, ensureLease, topupWallet, voidBill, type CreateBillInput } from './billing';
+import { bookAppointment, cancelAppointment, type BookInput } from './appointments';
 
 /**
  * Test bridge for the Playwright suite.
@@ -38,6 +39,12 @@ export interface SalonTestBridge {
   countBillsByInvoice(invoiceNo: string): Promise<number>;
   /** Push arbitrary ops straight to the server — used to replay for idempotency. */
   pushOps(ops: unknown[]): Promise<{ outcomes: { status: string; duplicate?: boolean }[] }>;
+
+  // --- Stage 4: appointments ---
+  bookAppointmentOffline(input: BookInput): Promise<string>;
+  cancelAppointment(id: string, reason?: string): Promise<void>;
+  findAppointment(id: string): Promise<unknown>;
+  countBookedAppointments(): Promise<number>;
 }
 
 declare global {
@@ -121,5 +128,10 @@ export function installTestBridge(): void {
       });
       return res.json();
     },
+
+    bookAppointmentOffline: (input) => bookAppointment(input),
+    cancelAppointment: (id, reason) => cancelAppointment(id, reason),
+    findAppointment: (id) => db.appointments.get(id),
+    countBookedAppointments: () => db.appointments.where('status').equals('booked').count(),
   };
 }

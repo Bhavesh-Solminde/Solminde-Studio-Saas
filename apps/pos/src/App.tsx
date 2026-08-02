@@ -3,9 +3,10 @@ import { pendingOpCount, requestPersistence } from './db';
 import { startSyncWorker } from './sync';
 import { CustomersView } from './CustomersView';
 import { BillingView } from './BillingView';
+import { AppointmentsView } from './AppointmentsView';
 import { s } from './styles';
 
-type Tab = 'billing' | 'customers';
+type Tab = 'billing' | 'appointments' | 'customers';
 
 /**
  * The POS shell: a permanent connection badge, a pending-sync counter, and two
@@ -65,6 +66,12 @@ export function App() {
           Billing
         </button>
         <button
+          style={{ ...s.tab, ...(tab === 'appointments' ? s.tabActive : {}) }}
+          onClick={() => setTab('appointments')}
+        >
+          Appointments
+        </button>
+        <button
           style={{ ...s.tab, ...(tab === 'customers' ? s.tabActive : {}) }}
           onClick={() => setTab('customers')}
         >
@@ -72,7 +79,11 @@ export function App() {
         </button>
       </nav>
 
-      <main style={s.main}>{tab === 'billing' ? <BillingView /> : <CustomersView />}</main>
+      <main style={s.main}>
+        {tab === 'billing' && <BillingView />}
+        {tab === 'appointments' && <AppointmentsView />}
+        {tab === 'customers' && <CustomersView />}
+      </main>
     </div>
   );
 }

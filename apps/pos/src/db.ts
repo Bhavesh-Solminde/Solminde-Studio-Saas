@@ -80,6 +80,27 @@ export interface LocalBill {
 }
 
 /**
+ * An appointment, in the local cache. Booked on the POS and pushed up, or booked
+ * online and pulled DOWN — the latter is how an online booking blocks the slot
+ * on the front desk's screen.
+ */
+export interface LocalAppointment {
+  id: string;
+  tenantId: string;
+  customerId: string;
+  staffId?: string | null;
+  resourceId?: string | null;
+  serviceId: string;
+  startAt: number;
+  endAt: number;
+  status: string;
+  source: string;
+  notes?: string | null;
+  updatedAt: number;
+  pending: boolean;
+}
+
+/**
  * The terminal's current invoice-number block, leased from the server while
  * online and consumed locally offline. `nextNumber` advances on every bill; the
  * printed number is therefore final the moment it prints, never assigned later.
@@ -120,6 +141,7 @@ export const db = new Dexie('salon-pos') as Dexie & {
   services: EntityTable<LocalService, 'id'>;
   products: EntityTable<LocalProduct, 'id'>;
   bills: EntityTable<LocalBill, 'id'>;
+  appointments: EntityTable<LocalAppointment, 'id'>;
   leases: EntityTable<LocalLease, 'key'>;
   localBalances: EntityTable<LocalBalance, 'key'>;
   syncMeta: EntityTable<SyncMeta, 'key'>;
@@ -138,6 +160,11 @@ db.version(2).stores({
   products: 'id, name, updatedAt',
   bills: 'id, invoiceNo, customerId, status, createdAt',
   leases: 'key',
+});
+
+// Stage 4 adds appointments — booked here or pulled down from online bookings.
+db.version(3).stores({
+  appointments: 'id, startAt, staffId, status, updatedAt',
 });
 
 export async function pendingOpCount(): Promise<number> {

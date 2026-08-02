@@ -1,0 +1,107 @@
+meta {
+  name: Appointment Conflict
+  type: http
+  seq: 22
+}
+
+post {
+  url: {{baseUrl}}/api/sync/push
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{accessToken}}
+}
+
+script:pre-request {
+  function uuidv4() {
+    return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, function (c) {
+      const r = (Math.random() * 16) | 0;
+      const v = c === "x" ? r : (r & 0x3) | 0x8;
+      return v.toString(16);
+    });
+  }
+  bru.setEnvVar("apptOpA", uuidv4());
+  bru.setEnvVar("apptOpB", uuidv4());
+  bru.setEnvVar("apptIdA", uuidv4());
+  bru.setEnvVar("apptIdB", uuidv4());
+  // A UNIQUE far-future window per run, so the first booking never collides with
+  // an appointment a previous run left behind — otherwise re-running the suite
+  // would make even the first booking "conflict". The second still overlaps the
+  // first within this same batch.
+  const base = 1900000000000 + Math.floor(Math.random() * 2000000000);
+  bru.setEnvVar("apptStart", base);
+  bru.setEnvVar("apptEnd", base + 1800000);
+  bru.setEnvVar("apptStart2", base + 600000);
+  bru.setEnvVar("apptEnd2", base + 2400000);
+}
+
+body:json {
+  {
+    "ops": [
+      {
+        "opId": "{{apptOpA}}",
+        "tenantId": "{{tenantId}}",
+        "terminalId": "00000000-0000-4000-8000-0000000000b0",
+        "localSeq": 1,
+        "type": "appointment.book",
+        "payload": {
+          "id": "{{apptIdA}}",
+          "customerId": "{{customerId}}",
+          "staffId": "dddddddd-0000-4000-8000-000000000001",
+          "resourceId": "99999999-0000-4000-8000-000000000001",
+          "serviceId": "aaaaaaaa-0000-4000-8000-000000000001",
+          "startAt": {{apptStart}},
+          "endAt": {{apptEnd}},
+          "source": "pos"
+        },
+        "status": "pending",
+        "attempts": 0,
+        "createdAt": 1
+      },
+      {
+        "opId": "{{apptOpB}}",
+        "tenantId": "{{tenantId}}",
+        "terminalId": "00000000-0000-4000-8000-0000000000b0",
+        "localSeq": 2,
+        "type": "appointment.book",
+        "payload": {
+          "id": "{{apptIdB}}",
+          "customerId": "{{customerId}}",
+          "staffId": "dddddddd-0000-4000-8000-000000000001",
+          "resourceId": "99999999-0000-4000-8000-000000000001",
+          "serviceId": "aaaaaaaa-0000-4000-8000-000000000001",
+          "startAt": {{apptStart2}},
+          "endAt": {{apptEnd2}},
+          "source": "pos"
+        },
+        "status": "pending",
+        "attempts": 0,
+        "createdAt": 2
+      }
+    ]
+  }
+}
+
+assert {
+  res.status: eq 201
+}
+
+tests {
+  test("both bookings are accepted", function () {
+    expect(res.body.outcomes[0].status).to.equal("acked");
+    expect(res.body.outcomes[1].status).to.equal("acked");
+  });
+
+  test("the overlapping second booking is flagged as a conflict, not dropped", function () {
+    expect(res.body.outcomes[0].result.conflict).to.equal(false);
+    expect(res.body.outcomes[1].result.conflict).to.equal(true);
+  });
+}
+
+docs {
+  Two appointments for the same stylist and chair overlap. Per the spec, neither
+  is silently dropped — both are created and the collision is recorded as an
+  appointment_conflict for the Conflicts screen, where the front desk resolves it.
+}

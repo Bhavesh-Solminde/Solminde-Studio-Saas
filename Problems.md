@@ -188,3 +188,74 @@ rolled-back op leaves no orphan audit entry.
   lookups for each line rather than batching by distinct staff. Bills carry a
   handful of lines, so this is not worth the caching complexity yet; revisit if
   a bulk-import path ever recomputes commission over thousands of lines.
+
+---
+
+## Stage 4 — Appointments and reach
+
+### Conflicts are detected, not prevented, and reuse the exceptions table
+
+**Decision.** A double-booking (same stylist or same chair, overlapping time) is
+allowed through — both appointments are created — and the overlap is recorded as
+a `sync_exception` of type `appointment_conflict`. The spec's Conflicts screen
+is that table filtered by type, not a separate table.
+
+**Why.** In an offline model neither the POS nor the online booking page can
+guarantee it saw the other's booking first, so a race is genuinely possible and
+cannot be prevented without a round trip. "Accept both, show both, let the front
+desk resolve" is the spec's rule, and it is also the only correct behaviour when
+you cannot know which booking is "first". Reusing `sync_exceptions` keeps one
+surface and one mental model for "something needs a human"; the type column is
+enough to split Exceptions (money/stock) from Conflicts (bookings) in the UI.
+
+### The public booking API is unauthenticated — resolved by a definer function
+
+**Blocker.** The online booking page has no login, but it must read a salon's
+services and take a booking. RLS fails closed, so an ordinary query returns
+nothing — the same problem login has.
+
+**Solution.** Same fix as login: a narrow `SECURITY DEFINER` function
+(`app_public_tenant`) resolves the slug to a tenant id and a few non-sensitive
+fields, and the `/api/public/*` routes are exempted from the bearer check in the
+tenant middleware. Everything after resolution runs inside that tenant's RLS
+scope via `tenantStorage.run`, with an empty user id (there is no user).
+
+### Availability means "a free chair", read once and computed in memory
+
+**Decision.** A slot is offered when business hours contain it, the requested
+stylist (if any) is free, and at least one resource (chair) is free. An online
+booking with no chosen stylist is auto-assigned the first free chair, so
+capacity is the number of resources.
+
+**Why the shape matters.** The availability endpoint is the booking page's
+render path — commercially the page that converts customers, with a real user
+waiting and a sub-500ms target. The first implementation queried per slot per
+resource (~40 round trips for a day); it now reads the day's bookings and the
+resource list ONCE and runs the slot loop in memory (2 queries). A booking-page
+render must never fan out into a query per slot.
+
+**Trade-off.** Business hours are a single constant window and dates are treated
+as a UTC day. A per-staff roster (P1) and timezone-correct local days are
+deferred — noted below — because getting the offline booking loop and the
+capacity model right first is what the gate depends on.
+
+### Messaging and payments are behind interfaces, stubbed
+
+**Decision.** `MessagingProvider` (WhatsApp) and `PaymentProvider` (Razorpay)
+are interfaces; development binds stub implementations that need no credentials.
+Going live is swapping the binding in the module — no handler, controller or
+test changes. Approved with the user before building (Stage 4 kickoff).
+
+**One real caveat.** The stub dispatches synchronously inside the caller's
+transaction, which is fine because it does no I/O. A live provider does real
+network I/O and must NOT run inside a database transaction; its dispatch has to
+move to a post-commit worker draining `messages` where status = 'queued'. The
+queue-first design already supports that — the worker is simply not built yet.
+
+### Deferred
+
+- **Live WhatsApp / Razorpay wiring** and the **post-commit dispatch worker** —
+  waiting on credentials and a provider decision (see above).
+- **Timezone-correct business hours and a per-staff roster.** Availability uses
+  a fixed UTC open/close window; real salons need local-day hours and per-stylist
+  shifts. Lands with the scheduling surface.

@@ -1,0 +1,41 @@
+meta {
+  name: Payment Link
+  type: http
+  seq: 24
+}
+
+post {
+  url: {{baseUrl}}/api/payments/link
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{accessToken}}
+}
+
+body:json {
+  {
+    "amountPaise": 94400,
+    "reference": "bruno-bill",
+    "description": "Balance due"
+  }
+}
+
+assert {
+  res.status: eq 201
+}
+
+tests {
+  test("a Text2Pay link is minted behind the provider interface", function () {
+    expect(res.body.url).to.be.a("string");
+    expect(res.body.url).to.match(/^https:\/\//);
+    expect(res.body.providerRef).to.be.a("string");
+  });
+}
+
+docs {
+  The provider is stubbed in development, so no Razorpay keys are needed. The
+  route shape and guards are identical whether the link is synthetic or live —
+  going live changes only the bound implementation.
+}

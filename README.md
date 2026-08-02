@@ -59,8 +59,8 @@ the build if this ever regresses.
 
 ```bash
 pnpm test:unit   # node:test — GST/bill maths, wallet settlement, commissions
-pnpm test:api    # Bruno — auth, sync, isolation, billing, packages, commissions
-pnpm test:e2e    # Playwright — the Stage 1, 2 and 3 offline gates
+pnpm test:api    # Bruno — auth, isolation, billing, commissions, booking, messaging
+pnpm test:e2e    # Playwright — the Stage 1–4 offline/booking gates
 pnpm test        # all three
 ```
 
@@ -124,7 +124,19 @@ packages/
   service offline; on sync each earns the correct, separate number, and a stylist
   logging in sees only their own — never a colleague's.
 
-- **Stage 4 — Appointments and reach.** Next.
+- **Stage 4 — Appointments and reach.** Complete and verified against Supabase.
+  Appointment book with staff + resource (chair) conflict checking, offline
+  book/cancel via the outbox, double-bookings detected on sync and surfaced as
+  `appointment_conflict` (accept both, never drop one), a public Next.js booking
+  page with live slot availability (resolved by tenant slug, no login), WhatsApp
+  and Razorpay behind provider interfaces (stubbed — no credentials needed),
+  WhatsApp sends queued in the outbox, and Text2Pay payment links.
+
+  **Gate passed:** a customer books online, a confirmation message is dispatched,
+  the slot stops being offered, and the booking is pulled down onto the front
+  desk's POS appointment book.
+
+- **Stage 5 — Reports and ops surfaces.** Next.
 
 ## Licence
 

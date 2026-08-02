@@ -39,7 +39,7 @@ DECLARE
     'customers', 'staff', 'attendance', 'resources', 'appointments',
     'bills', 'bill_lines', 'payments', 'expenses', 'invoice_leases', 'day_closes',
     'wallet_ledger', 'stock_ledger', 'session_ledger', 'customer_packages',
-    'processed_ops', 'tombstones', 'sync_exceptions',
+    'processed_ops', 'tombstones', 'sync_exceptions', 'messages',
     'site_settings', 'site_sections', 'site_media',
     'user_permission_overrides'
   ];
