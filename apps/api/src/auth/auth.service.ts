@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { createHash, randomBytes, timingSafeEqual, scrypt as scryptCb } from 'node:crypto';
 import { promisify } from 'node:util';
 import { PrismaService } from '../prisma.service.js';
@@ -61,7 +61,7 @@ export class AuthService {
   }
 
   /** Refresh tokens are stored hashed — a database leak must not yield usable tokens. */
-  private hashToken(token: string): string {
+  hashToken(token: string): string {
     return createHash('sha256').update(token).digest('hex');
   }
 
@@ -71,32 +71,29 @@ export class AuthService {
     terminalId?: string | null;
   }): Promise<string> {
     const token = randomBytes(32).toString('base64url');
-    await this.prisma.refreshToken.create({
-      data: {
-        tenantId: params.tenantId,
-        userId: params.userId,
-        terminalId: params.terminalId ?? null,
-        tokenHash: this.hashToken(token),
-        expiresAt: new Date(Date.now() + REFRESH_TOKEN_TTL_MS),
-      },
+    // refresh_tokens is RLS-protected, so this insert must carry tenant scope
+    // or Postgres rejects it with "new row violates row-level security policy".
+    await this.prisma.withTenantId(params.tenantId, async (tx) => {
+      await tx.refreshToken.create({
+        data: {
+          tenantId: params.tenantId,
+          userId: params.userId,
+          terminalId: params.terminalId ?? null,
+          tokenHash: this.hashToken(token),
+          expiresAt: new Date(Date.now() + REFRESH_TOKEN_TTL_MS),
+        },
+      });
     });
     return token;
   }
 
-  async consumeRefreshToken(token: string): Promise<{ tenantId: string; userId: string }> {
-    const row = await this.prisma.refreshToken.findUnique({
-      where: { tokenHash: this.hashToken(token) },
-    });
-    if (!row || row.revokedAt || row.expiresAt.getTime() < Date.now()) {
-      throw new UnauthorizedException('Refresh token invalid or expired');
-    }
-    return { tenantId: row.tenantId, userId: row.userId };
-  }
 
-  async revokeRefreshToken(token: string): Promise<void> {
-    await this.prisma.refreshToken.updateMany({
-      where: { tokenHash: this.hashToken(token) },
-      data: { revokedAt: new Date() },
+  async revokeRefreshToken(tenantId: string, token: string): Promise<void> {
+    await this.prisma.withTenantId(tenantId, async (tx) => {
+      await tx.refreshToken.updateMany({
+        where: { tokenHash: this.hashToken(token) },
+        data: { revokedAt: new Date() },
+      });
     });
   }
 }

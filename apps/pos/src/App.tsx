@@ -1,68 +1,135 @@
 import { useEffect, useState } from 'react';
-import { pendingOpCount, requestPersistence } from './db';
+import { useLiveQuery } from 'dexie-react-hooks';
+import { db, pendingOpCount, requestPersistence } from './db';
+import { createCustomer, startSyncWorker } from './sync';
 
 /**
- * Stage 0 shell. No features — this exists to prove the app boots and to hold
- * the two pieces of permanent chrome the spec requires from day one:
- * connection state and the pending-op count.
+ * Stage 1 surface: customers end-to-end. One entity, taken all the way from an
+ * offline write through the outbox to RLS-scoped Postgres and back down to a
+ * second device.
+ *
+ * Built to DESIGN.md: blue means settled, yellow means waiting on you, flat
+ * surfaces separated by hairlines, tabular figures, and no spinner anywhere —
+ * every read and write here touches only Dexie.
  */
 export function App() {
   const [online, setOnline] = useState(navigator.onLine);
   const [pending, setPending] = useState(0);
+  const [name, setName] = useState('');
+  const [phone, setPhone] = useState('');
+
+  const customers = useLiveQuery(() => db.customers.reverse().sortBy('updatedAt'), [], []);
 
   useEffect(() => {
     void requestPersistence();
+    const stop = startSyncWorker();
 
     const sync = () => setOnline(navigator.onLine);
     window.addEventListener('online', sync);
     window.addEventListener('offline', sync);
 
-    let cancelled = false;
-    void pendingOpCount().then((count) => {
-      if (!cancelled) setPending(count);
-    });
+    const poll = window.setInterval(() => {
+      void pendingOpCount().then(setPending);
+    }, 1000);
 
     return () => {
-      cancelled = true;
+      stop();
       window.removeEventListener('online', sync);
       window.removeEventListener('offline', sync);
+      window.clearInterval(poll);
     };
   }, []);
 
+  async function submit(event: React.FormEvent) {
+    event.preventDefault();
+    if (!name.trim() || !phone.trim()) return;
+
+    // No await on the network, and no loading state. This resolves in a few
+    // milliseconds because it only writes to IndexedDB.
+    await createCustomer({ id: crypto.randomUUID(), name: name.trim(), phone: phone.trim() });
+    setName('');
+    setPhone('');
+  }
+
   return (
-    <div style={styles.shell}>
-      <header style={styles.header}>
-        <span style={styles.wordmark}>Salon Platform</span>
+    <div style={s.shell}>
+      <header style={s.header}>
+        <span style={s.wordmark}>Salon Platform</span>
 
         {/*
-          Reserved well. DESIGN.md: connection state holds permanent header space
-          whether or not anything is wrong, so its appearance never reflows the
-          billing screen mid-transaction.
+          Reserved well: connection state holds permanent space whether or not
+          anything is wrong, so its appearance never reflows the screen.
         */}
-        <div style={styles.statusWell}>
-          <span style={online ? styles.statusSettled : styles.statusWaiting}>
-            {online ? 'Online' : 'Offline'}
-          </span>
-          <span style={styles.pending}>
-            {pending} {pending === 1 ? 'bill' : 'bills'} pending sync
+        <div style={s.statusWell}>
+          <span style={online ? s.settled : s.waiting}>{online ? 'Online' : 'Offline'}</span>
+          <span style={s.meta}>
+            {pending} pending {pending === 1 ? 'change' : 'changes'}
           </span>
         </div>
       </header>
 
-      <main style={styles.main}>
-        <h1 style={styles.title}>Stage 0</h1>
-        <p style={styles.body}>
-          Rails only. The workspace builds, the shell boots with no server, and the outbox is
-          open for writes. Stage 1 adds the sync foundation.
-        </p>
+      <main style={s.main}>
+        <h1 style={s.title}>Customers</h1>
+
+        <form onSubmit={submit} style={s.form}>
+          <input
+            style={s.input}
+            placeholder="Name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            aria-label="Customer name"
+          />
+          <input
+            style={s.input}
+            placeholder="Phone"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            aria-label="Customer phone"
+            inputMode="numeric"
+          />
+          <button type="submit" style={s.primary}>
+            Add customer
+          </button>
+        </form>
+
+        <table style={s.table}>
+          <thead>
+            <tr>
+              <th style={s.th}>Name</th>
+              <th style={s.th}>Phone</th>
+              <th style={{ ...s.th, textAlign: 'right' }}>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {customers.length === 0 && (
+              <tr>
+                <td colSpan={3} style={s.empty}>
+                  No customers yet. Add one above — it works with the internet off.
+                </td>
+              </tr>
+            )}
+            {customers.map((customer) => (
+              <tr key={customer.id}>
+                <td style={s.td}>{customer.name}</td>
+                <td style={{ ...s.td, fontVariantNumeric: 'tabular-nums' }}>{customer.phone}</td>
+                <td style={{ ...s.td, textAlign: 'right' }}>
+                  {/* Colour is never the only signal — the label carries it too. */}
+                  <span style={customer.pending ? s.waiting : s.settled}>
+                    {customer.pending ? 'Pending sync' : 'Synced'}
+                  </span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </main>
     </div>
   );
 }
 
-// Inline styles are a Stage 0 placeholder. Real token plumbing lands with the
-// first actual screen; see DESIGN.md.
-const styles: Record<string, React.CSSProperties> = {
+// Inline styles remain a Stage 1 placeholder; token plumbing lands with the
+// billing screen in Stage 2. Values track DESIGN.md's committed palette.
+const s: Record<string, React.CSSProperties> = {
   shell: { display: 'flex', flexDirection: 'column', height: '100%' },
   header: {
     display: 'flex',
@@ -75,22 +142,54 @@ const styles: Record<string, React.CSSProperties> = {
   },
   wordmark: { fontSize: 15, fontWeight: 600, letterSpacing: '-0.01em' },
   statusWell: { display: 'flex', alignItems: 'center', gap: 12, minHeight: 24 },
-  statusSettled: {
+  settled: {
     padding: '3px 9px',
     background: 'var(--blue-wash)',
     color: 'var(--signal-blue)',
     fontSize: 12,
     fontWeight: 600,
   },
-  statusWaiting: {
+  waiting: {
     padding: '3px 9px',
     background: 'var(--yellow-wash)',
     color: 'var(--ink)',
     fontSize: 12,
     fontWeight: 600,
   },
-  pending: { fontSize: 12, color: 'var(--ink-muted)' },
-  main: { padding: '40px 20px', maxWidth: 640 },
-  title: { fontSize: 26, fontWeight: 600, margin: '0 0 10px', letterSpacing: '-0.02em' },
-  body: { fontSize: 14, lineHeight: 1.6, color: 'var(--ink-muted)', margin: 0 },
+  meta: { fontSize: 12, color: 'var(--ink-muted)' },
+  main: { padding: '28px 20px', maxWidth: 880 },
+  title: { fontSize: 22, fontWeight: 600, margin: '0 0 18px', letterSpacing: '-0.02em' },
+  form: { display: 'flex', gap: 8, marginBottom: 28 },
+  input: {
+    flex: '0 1 220px',
+    padding: '9px 11px',
+    fontSize: 14,
+    color: 'var(--ink)',
+    background: 'var(--panel)',
+    border: '1px solid var(--hairline)',
+    borderRadius: 3,
+  },
+  primary: {
+    padding: '9px 18px',
+    fontSize: 14,
+    fontWeight: 600,
+    color: '#fff',
+    background: 'var(--signal-blue)',
+    border: 'none',
+    borderRadius: 3,
+    cursor: 'pointer',
+  },
+  table: { width: '100%', borderCollapse: 'collapse', background: 'var(--panel)' },
+  th: {
+    padding: '9px 12px',
+    fontSize: 11,
+    fontWeight: 600,
+    letterSpacing: '0.06em',
+    textTransform: 'uppercase',
+    color: 'var(--ink-muted)',
+    textAlign: 'left',
+    borderBottom: '1px solid var(--hairline)',
+  },
+  td: { padding: '11px 12px', fontSize: 14, borderBottom: '1px solid var(--hairline)' },
+  empty: { padding: '28px 12px', fontSize: 14, color: 'var(--ink-muted)', textAlign: 'center' },
 };

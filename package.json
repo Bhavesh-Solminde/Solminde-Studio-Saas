@@ -8,17 +8,23 @@
   },
   "packageManager": "pnpm@10.33.0",
   "scripts": {
-    "dev:pos": "pnpm --filter @salon/pos dev",
-    "dev:web": "pnpm --filter @salon/web dev",
-    "dev:api": "pnpm --filter @salon/api start:dev",
+    "dev:pos": "pnpm --filter @salon/shared build && pnpm --filter @salon/pos dev",
+    "dev:web": "pnpm --filter @salon/shared build && pnpm --filter @salon/web dev",
+    "dev:api": "pnpm --filter @salon/shared build && pnpm --filter @salon/api start:dev",
     "build": "pnpm -r build",
     "typecheck": "pnpm -r typecheck",
     "lint": "eslint .",
     "format": "prettier --write .",
-    "detect": "impeccable detect apps/pos/src apps/web/src"
+    "detect": "impeccable detect apps/pos/src apps/web/src",
+    "test:api": "bru run --env local --cwd tests/bruno",
+    "test:e2e": "playwright test",
+    "test": "pnpm test:api && pnpm test:e2e",
+    "db:setup": "pnpm --filter @salon/api prisma:migrate && pnpm --filter @salon/api rls:apply && pnpm --filter @salon/api db:seed"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.62.1",
+    "@usebruno/cli": "^4.0.0",
     "eslint": "^10.8.0",
     "globals": "^17.8.0",
     "prettier": "^3.9.6",

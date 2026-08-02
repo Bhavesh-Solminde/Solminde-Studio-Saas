@@ -1,0 +1,55 @@
+meta {
+  name: Sync Push
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{baseUrl}}/api/sync/push
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{accessToken}}
+}
+
+body:json {
+  {
+    "ops": [
+      {
+        "opId": "{{opId}}",
+        "tenantId": "{{tenantId}}",
+        "terminalId": "00000000-0000-4000-8000-000000000001",
+        "localSeq": 1,
+        "type": "customer.create",
+        "payload": {
+          "id": "{{customerId}}",
+          "name": "Bruno Test Customer",
+          "phone": "{{customerPhone}}"
+        },
+        "status": "pending",
+        "attempts": 0,
+        "createdAt": 1
+      }
+    ]
+  }
+}
+
+assert {
+  res.status: eq 201
+}
+
+tests {
+  test("op is acked", function () {
+    expect(res.body.outcomes[0].status).to.equal("acked");
+  });
+
+  test("first delivery is not flagged duplicate", function () {
+    expect(res.body.outcomes[0].duplicate).to.equal(false);
+  });
+
+  test("returns the created customer id", function () {
+    expect(res.body.outcomes[0].result.id).to.equal(bru.getEnvVar("customerId"));
+  });
+}

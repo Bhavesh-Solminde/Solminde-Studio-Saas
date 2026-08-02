@@ -1,0 +1,61 @@
+meta {
+  name: Login
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/api/auth/login
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "tenantSlug": "{{tenantSlug}}",
+    "phone": "{{phone}}",
+    "password": "{{password}}"
+  }
+}
+
+script:post-response {
+  bru.setEnvVar("accessToken", res.body.accessToken);
+  bru.setEnvVar("refreshToken", res.body.refreshToken);
+  bru.setEnvVar("tenantId", res.body.localSession.tenantId);
+
+  // Bruno's script sandbox has no global `crypto`, so build a v4 by hand.
+  // Using crypto.randomUUID() here throws and silently aborts the rest of
+  // this script, leaving opId unset and every later request failing.
+  function uuidv4() {
+    return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, function (c) {
+      const r = (Math.random() * 16) | 0;
+      const v = c === "x" ? r : (r & 0x3) | 0x8;
+      return v.toString(16);
+    });
+  }
+
+  // A fresh op id per run, so re-running the collection exercises a genuinely
+  // new operation rather than replaying an already-processed one.
+  bru.setEnvVar("opId", uuidv4());
+  bru.setEnvVar("customerId", uuidv4());
+  bru.setEnvVar("customerPhone", "98" + Math.floor(10000000 + Math.random() * 89999999));
+}
+
+assert {
+  res.status: eq 201
+  res.body.accessToken: isDefined
+  res.body.localSession.expiresAt: isDefined
+}
+
+tests {
+  test("local session outlives the access token", function () {
+    // The whole point of the split: the front desk must stay usable through a
+    // multi-hour outage even though the API token expired long ago.
+    expect(res.body.localSession.expiresAt).to.be.greaterThan(res.body.accessExpiresAt);
+  });
+
+  test("local session carries permissions and features for offline UI", function () {
+    expect(res.body.localSession.permissions).to.be.an("array");
+    expect(res.body.localSession.features).to.be.an("array");
+  });
+}

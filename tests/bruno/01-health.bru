@@ -1,0 +1,22 @@
+meta {
+  name: Health
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/api/health
+  body: none
+  auth: none
+}
+
+assert {
+  res.status: eq 200
+  res.body.ok: eq true
+}
+
+docs {
+  Also proves the database is reachable — the handler runs SELECT 1.
+  This is the endpoint Cloud Scheduler pings every 4 minutes during salon
+  hours to keep the instance warm.
+}

@@ -11,27 +11,32 @@ export class PermissionsService {
   constructor(private readonly prisma: PrismaService) {}
 
   async resolve(userId: string): Promise<Set<Permission>> {
-    const user = await this.prisma.user.findUnique({ where: { id: userId } });
-    if (!user) return new Set();
+    // withTenant, not a bare query: these tables are RLS-protected, so a query
+    // outside a tenant transaction silently returns nothing. If an existing
+    // transaction is in scope this joins it rather than nesting.
+    return this.prisma.withTenant(async (tx) => {
+      const user = await tx.user.findUnique({ where: { id: userId } });
+      if (!user) return new Set<Permission>();
 
-    const granted = new Set<Permission>();
+      const granted = new Set<Permission>();
 
-    if (user.roleId) {
-      const role = await this.prisma.role.findUnique({ where: { id: user.roleId } });
-      for (const permission of role?.permissions ?? []) {
-        granted.add(permission as Permission);
+      if (user.roleId) {
+        const role = await tx.role.findUnique({ where: { id: user.roleId } });
+        for (const permission of role?.permissions ?? []) {
+          granted.add(permission as Permission);
+        }
       }
-    }
 
-    // Per-user overrides win over the role in both directions: a grant adds,
-    // a revoke removes even when the role allows it.
-    const overrides = await this.prisma.userPermissionOverride.findMany({ where: { userId } });
-    for (const override of overrides) {
-      if (override.granted) granted.add(override.permission as Permission);
-      else granted.delete(override.permission as Permission);
-    }
+      // Per-user overrides win over the role in BOTH directions: a grant adds,
+      // a revoke removes even when the role allows it.
+      const overrides = await tx.userPermissionOverride.findMany({ where: { userId } });
+      for (const override of overrides) {
+        if (override.granted) granted.add(override.permission as Permission);
+        else granted.delete(override.permission as Permission);
+      }
 
-    return granted;
+      return granted;
+    });
   }
 
   async has(userId: string, permission: Permission): Promise<boolean> {

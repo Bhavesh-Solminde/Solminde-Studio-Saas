@@ -1,0 +1,44 @@
+meta {
+  name: Tenant Isolation
+  type: http
+  seq: 6
+}
+
+post {
+  url: {{baseUrl}}/api/auth/login
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "tenantSlug": "{{otherTenantSlug}}",
+    "phone": "{{otherPhone}}",
+    "password": "{{otherPassword}}"
+  }
+}
+
+script:post-response {
+  bru.setEnvVar("otherAccessToken", res.body.accessToken);
+}
+
+assert {
+  res.status: eq 201
+}
+
+tests {
+  test("second tenant authenticates independently", function () {
+    expect(res.body.localSession.tenantId).to.not.equal(bru.getEnvVar("tenantId"));
+  });
+}
+
+docs {
+  Multi-tenant safety, verified by querying as a second tenant — one of the
+  Definition of Done checks.
+
+  The real assertion lives in 07-tenant-isolation-pull.bru, which pulls with
+  this tenant's token and asserts the other salon's customer is not visible.
+  If RLS is misconfigured — most likely because FORCE ROW LEVEL SECURITY was
+  omitted, or the pooler dropped app.tenant_id — that test fails and nothing
+  else does. It is the canary for the most expensive bug in the system.
+}

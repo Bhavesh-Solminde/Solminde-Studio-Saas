@@ -1,0 +1,49 @@
+meta {
+  name: Tenant Isolation Pull
+  type: http
+  seq: 7
+}
+
+get {
+  url: {{baseUrl}}/api/sync/pull?tables=customers
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{otherAccessToken}}
+}
+
+assert {
+  res.status: eq 200
+}
+
+tests {
+  test("the other salon's customer is NOT visible", function () {
+    const leaked = (res.body.changes.customers ?? []).filter(
+      (c) => c.id === bru.getEnvVar("customerId"),
+    );
+    expect(leaked.length).to.equal(0);
+  });
+
+  test("no row from the first tenant appears at all", function () {
+    const firstTenantId = bru.getEnvVar("tenantId");
+    const leaked = (res.body.changes.customers ?? []).filter(
+      (c) => c.tenantId === firstTenantId,
+    );
+    expect(leaked.length).to.equal(0);
+  });
+}
+
+docs {
+  If this test fails, stop everything.
+
+  A failure means row-level security is not isolating tenants, which is the
+  business-ending bug: Salon A can see Salon B's customers. The two likely
+  causes are FORCE ROW LEVEL SECURITY missing (plain ENABLE does not apply to
+  the table owner, and Prisma connects as the owner), or the connection pooler
+  running in statement mode and silently dropping app.tenant_id.
+
+  Nothing else visibly breaks when this is wrong. That is what makes it
+  dangerous, and why this assertion exists.
+}

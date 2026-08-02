@@ -59,6 +59,6 @@ const OP_HANDLERS = [CustomerCreateHandler];
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer): void {
-    consumer.apply(TenantMiddleware).forRoutes('*');
+    consumer.apply(TenantMiddleware).forRoutes('{*path}');
   }
 }

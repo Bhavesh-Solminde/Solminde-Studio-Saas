@@ -1,7 +1,9 @@
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import 'dotenv/config';
+import { config as loadEnv } from 'dotenv';
+
+loadEnv({ path: join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '.env') });
 import pg from 'pg';
 
 /**

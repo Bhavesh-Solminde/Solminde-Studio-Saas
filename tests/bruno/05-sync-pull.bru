@@ -1,0 +1,39 @@
+meta {
+  name: Sync Pull
+  type: http
+  seq: 5
+}
+
+get {
+  url: {{baseUrl}}/api/sync/pull?tables=customers
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{accessToken}}
+}
+
+assert {
+  res.status: eq 200
+  res.body.cursor: isDefined
+}
+
+tests {
+  test("the pushed customer comes back", function () {
+    const match = res.body.changes.customers.filter(
+      (c) => c.id === bru.getEnvVar("customerId"),
+    );
+    expect(match.length).to.equal(1);
+  });
+
+  test("the replayed op produced exactly one row", function () {
+    const phone = bru.getEnvVar("customerPhone");
+    const sameNumber = res.body.changes.customers.filter((c) => c.phone === phone);
+    expect(sameNumber.length).to.equal(1);
+  });
+
+  test("tombstones are returned so clients can learn about deletes", function () {
+    expect(res.body.tombstones).to.be.an("array");
+  });
+}

@@ -1,0 +1,63 @@
+meta {
+  name: Sync Push Idempotency
+  type: http
+  seq: 4
+}
+
+post {
+  url: {{baseUrl}}/api/sync/push
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{accessToken}}
+}
+
+body:json {
+  {
+    "ops": [
+      {
+        "opId": "{{opId}}",
+        "tenantId": "{{tenantId}}",
+        "terminalId": "00000000-0000-4000-8000-000000000001",
+        "localSeq": 1,
+        "type": "customer.create",
+        "payload": {
+          "id": "{{customerId}}",
+          "name": "Bruno Test Customer",
+          "phone": "{{customerPhone}}"
+        },
+        "status": "pending",
+        "attempts": 0,
+        "createdAt": 1
+      }
+    ]
+  }
+}
+
+assert {
+  res.status: eq 201
+}
+
+tests {
+  test("replayed op is acked, not re-applied", function () {
+    expect(res.body.outcomes[0].status).to.equal("acked");
+    expect(res.body.outcomes[0].duplicate).to.equal(true);
+  });
+
+  test("returns the stored result, identical to the first delivery", function () {
+    expect(res.body.outcomes[0].result.id).to.equal(bru.getEnvVar("customerId"));
+  });
+}
+
+docs {
+  This is the single most important test in the collection.
+
+  The exact same op_id is delivered twice, which is what flaky 4G, a retry
+  storm, or a double-tapped Save button all produce. If processed_ops did not
+  dedupe, this would create a second row — and in Stage 2 that means a
+  duplicate bill. Duplicate bills lose the client.
+
+  The 12-sync-pull-after check confirms only one customer row exists.
+}

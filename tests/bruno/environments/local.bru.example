@@ -1,0 +1,9 @@
+vars {
+  baseUrl: http://localhost:3001
+  tenantSlug: acme-salon
+  otherTenantSlug: rival-salon
+  phone: 9000000001
+  password: frontdesk-dev-password
+  otherPhone: 9000000002
+  otherPassword: rival-dev-password
+}

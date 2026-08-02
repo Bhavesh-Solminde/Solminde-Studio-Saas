@@ -18,7 +18,11 @@ export class TenantMiddleware implements NestMiddleware {
   constructor(private readonly tokens: TokenService) {}
 
   async use(req: Request, res: Response, next: NextFunction): Promise<void> {
-    if (PUBLIC_PATHS.has(req.path)) return next();
+    // originalUrl rather than req.path: Express strips the mount prefix from
+    // req.path inside middleware, and a query string must not defeat the
+    // match either. Getting this wrong locks everyone out of login.
+    const path = (req.originalUrl || req.url).split('?')[0]?.replace(/\/+$/, '') ?? '';
+    if (PUBLIC_PATHS.has(path)) return next();
 
     const header = req.headers.authorization;
     if (!header?.startsWith('Bearer ')) {

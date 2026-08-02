@@ -40,3 +40,7 @@ test-results/
 # Design research captures — spec §12: analysis and internal reference only.
 # These never ship, are never committed, and are never shown to clients.
 scripts/design-research/out/
+
+# Bruno writes live access/refresh tokens back into the environment file on
+# every run. Commit the template instead.
+tests/bruno/environments/local.bru
