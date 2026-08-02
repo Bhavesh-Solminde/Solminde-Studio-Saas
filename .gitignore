@@ -1,0 +1,42 @@
+# dependencies
+node_modules/
+.pnpm-store/
+
+# builds
+dist/
+build/
+out/
+.next/
+.turbo/
+*.tsbuildinfo
+
+# env — never commit
+.env
+.env.*
+!.env.example
+
+# prisma
+apps/api/prisma/*.db
+apps/api/prisma/migrations/dev.db*
+
+# editors / os
+.DS_Store
+.idea/
+*.swp
+
+# logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# test / coverage
+coverage/
+playwright-report/
+test-results/
+
+# impeccable local state (skill itself is committed)
+.impeccable/live/
+
+# Design research captures — spec §12: analysis and internal reference only.
+# These never ship, are never committed, and are never shown to clients.
+scripts/design-research/out/

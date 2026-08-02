@@ -1,0 +1,10 @@
+packages:
+  - 'apps/*'
+  - 'packages/*'
+
+# Postinstall scripts are blocked by default in pnpm 10. These three genuinely
+# need them: Prisma downloads its query engine, sharp its platform binary.
+onlyBuiltDependencies:
+  - '@prisma/engines'
+  - prisma
+  - sharp

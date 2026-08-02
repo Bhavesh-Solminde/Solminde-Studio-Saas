@@ -1,0 +1,591 @@
+// Salon Platform — schema skeleton (Stage 0).
+//
+// THE RULE THIS FILE ENFORCES: there is no balance column anywhere in this file.
+// No product.stockQty, no customer.walletBalance, no package.sessionsLeft, no
+// staff.commissionEarned. Every one of those is SUM(delta) over an append-only
+// ledger, because addition commutes and two offline terminals syncing in any
+// order must reach the same number.
+//
+// Every tenant-scoped table carries tenantId, createdAt, updatedAt and rowVersion.
+// RLS policies and migrations land in Stage 1 — this is the shape only.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// Prisma 7: the connection URL lives in prisma.config.ts for migrations, and the
+// runtime client receives a driver adapter. See src/prisma.service.ts.
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------------------------------------------------------------- tenancy
+
+model Tenant {
+  id         String   @id @default(uuid()) @db.Uuid
+  name       String
+  slug       String   @unique
+  plan       String   @default("standard")
+  gstNumber  String?
+  address    String?
+  timezone   String   @default("Asia/Kolkata")
+  status     String   @default("active")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  rowVersion Int      @default(0)
+
+  @@map("tenants")
+}
+
+model Location {
+  id         String   @id @default(uuid()) @db.Uuid
+  tenantId   String   @db.Uuid
+  name       String
+  address    String?
+  isPrimary  Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  rowVersion Int      @default(0)
+
+  @@index([tenantId])
+  @@map("locations")
+}
+
+model User {
+  id           String   @id @default(uuid()) @db.Uuid
+  tenantId     String   @db.Uuid
+  name         String
+  phone        String
+  email        String?
+  passwordHash String
+  roleId       String?  @db.Uuid
+  status       String   @default("active")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  rowVersion   Int      @default(0)
+
+  @@unique([tenantId, phone])
+  @@index([tenantId])
+  @@map("users")
+}
+
+model Role {
+  id          String   @id @default(uuid()) @db.Uuid
+  // Null tenantId = system default role (Owner, Manager, Front Desk, Stylist).
+  tenantId    String?  @db.Uuid
+  name        String
+  permissions String[]
+  isSystem    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  rowVersion  Int      @default(0)
+
+  @@index([tenantId])
+  @@map("roles")
+}
+
+model UserPermissionOverride {
+  userId     String  @db.Uuid
+  permission String
+  granted    Boolean
+
+  @@id([userId, permission])
+  @@map("user_permission_overrides")
+}
+
+model Terminal {
+  id         String    @id @default(uuid()) @db.Uuid
+  tenantId   String    @db.Uuid
+  locationId String?   @db.Uuid
+  name       String
+  lastSeenAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  rowVersion Int       @default(0)
+
+  @@index([tenantId])
+  @@map("terminals")
+}
+
+// ------------------------------------------------------------ entitlements
+
+model Feature {
+  key         String   @id
+  label       String
+  category    String
+  dependsOn   String[]
+  defaultTier String   @default("standard")
+
+  @@map("features")
+}
+
+model TenantFeature {
+  tenantId  String    @db.Uuid
+  key       String
+  enabled   Boolean
+  // 'plan' | 'override' | 'trial' — resolution order is plan -> override -> trial.
+  source    String    @default("plan")
+  // Built now even though trials are not used immediately; entitlements are the
+  // pricing mechanism, not merely an off-switch.
+  expiresAt DateTime?
+
+  @@id([tenantId, key])
+  @@map("tenant_features")
+}
+
+model AuditLog {
+  id       String   @id @default(uuid()) @db.Uuid
+  tenantId String   @db.Uuid
+  userId   String?  @db.Uuid
+  action   String
+  entity   String
+  entityId String?
+  before   Json?
+  after    Json?
+  at       DateTime @default(now())
+
+  @@index([tenantId, at])
+  @@map("audit_log")
+}
+
+// ---------------------------------------------------------------- catalog
+
+model ServiceCategory {
+  id         String   @id @default(uuid()) @db.Uuid
+  tenantId   String   @db.Uuid
+  name       String
+  position   Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  rowVersion Int      @default(0)
+
+  @@index([tenantId])
+  @@map("service_categories")
+}
+
+model Service {
+  id               String   @id @default(uuid()) @db.Uuid
+  tenantId         String   @db.Uuid
+  categoryId       String?  @db.Uuid
+  name             String
+  durationMin      Int
+  /// Integer paise. Never a float — see packages/shared/src/money.ts.
+  price            Int
+  taxRate          Decimal  @db.Decimal(5, 2)
+  commissionRuleId String?  @db.Uuid
+  active           Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  rowVersion       Int      @default(0)
+
+  @@index([tenantId])
+  @@map("services")
+}
+
+model Product {
+  id       String  @id @default(uuid()) @db.Uuid
+  tenantId String  @db.Uuid
+  name     String
+  sku      String?
+  /// Integer paise.
+  cost     Int
+  /// Integer paise.
+  price    Int
+  taxRate  Decimal @db.Decimal(5, 2)
+  // NOTE: reorderLevel is a threshold the owner sets, NOT a stock count.
+  // Stock on hand is SUM(delta) over StockLedger and is never stored here.
+  reorderLevel Int      @default(0)
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  rowVersion   Int      @default(0)
+
+  @@index([tenantId])
+  @@map("products")
+}
+
+model Package {
+  id           String   @id @default(uuid()) @db.Uuid
+  tenantId     String   @db.Uuid
+  name         String
+  /// Integer paise.
+  price        Int
+  validityDays Int
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  rowVersion   Int      @default(0)
+
+  @@index([tenantId])
+  @@map("packages")
+}
+
+model PackageItem {
+  packageId String @db.Uuid
+  serviceId String @db.Uuid
+  quantity  Int
+
+  @@id([packageId, serviceId])
+  @@map("package_items")
+}
+
+model Membership {
+  id           String   @id @default(uuid()) @db.Uuid
+  tenantId     String   @db.Uuid
+  name         String
+  /// Integer paise.
+  price        Int
+  /// Integer paise credited to the wallet ledger on purchase.
+  walletCredit Int
+  benefits     Json?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  rowVersion   Int      @default(0)
+
+  @@index([tenantId])
+  @@map("memberships")
+}
+
+// ------------------------------------------------------ people & scheduling
+
+model Customer {
+  id           String    @id @default(uuid()) @db.Uuid
+  tenantId     String    @db.Uuid
+  name         String
+  phone        String
+  email        String?
+  dob          DateTime?
+  anniversary  DateTime?
+  notes        String?
+  tags         String[]
+  firstVisitAt DateTime?
+  lastVisitAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  rowVersion   Int       @default(0)
+
+  @@unique([tenantId, phone])
+  @@index([tenantId])
+  @@map("customers")
+}
+
+model Staff {
+  id               String   @id @default(uuid()) @db.Uuid
+  tenantId         String   @db.Uuid
+  userId           String?  @db.Uuid
+  displayName      String
+  skills           String[]
+  commissionRuleId String?  @db.Uuid
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  rowVersion       Int      @default(0)
+
+  @@index([tenantId])
+  @@map("staff")
+}
+
+model Attendance {
+  id         String    @id @default(uuid()) @db.Uuid
+  tenantId   String    @db.Uuid
+  staffId    String    @db.Uuid
+  date       DateTime  @db.Date
+  inAt       DateTime?
+  outAt      DateTime?
+  status     String
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  rowVersion Int       @default(0)
+
+  @@unique([tenantId, staffId, date])
+  @@map("attendance")
+}
+
+model Resource {
+  id         String   @id @default(uuid()) @db.Uuid
+  tenantId   String   @db.Uuid
+  locationId String?  @db.Uuid
+  name       String
+  // 'chair' | 'room'
+  type       String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  rowVersion Int      @default(0)
+
+  @@index([tenantId])
+  @@map("resources")
+}
+
+model Appointment {
+  id         String   @id @default(uuid()) @db.Uuid
+  tenantId   String   @db.Uuid
+  locationId String?  @db.Uuid
+  customerId String   @db.Uuid
+  staffId    String?  @db.Uuid
+  resourceId String?  @db.Uuid
+  serviceId  String   @db.Uuid
+  startAt    DateTime
+  endAt      DateTime
+  status     String   @default("booked")
+  // 'pos' | 'online' | 'whatsapp'
+  source     String   @default("pos")
+  notes      String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  rowVersion Int      @default(0)
+
+  @@index([tenantId, startAt])
+  @@map("appointments")
+}
+
+// ------------------------------------------------------------------ money
+
+model Bill {
+  id         String   @id @default(uuid()) @db.Uuid
+  tenantId   String   @db.Uuid
+  locationId String?  @db.Uuid
+  terminalId String   @db.Uuid
+  invoiceNo  String
+  series     String
+  customerId String?  @db.Uuid
+  /// All amounts integer paise.
+  subtotal   Int
+  discount   Int      @default(0)
+  tax        Int      @default(0)
+  total      Int
+  // 'final' | 'void' — a void is recorded here AND as reversing ledger entries.
+  status     String   @default("final")
+  createdBy  String?  @db.Uuid
+  /// Idempotency key of the op that created this bill. Unique per tenant.
+  opId       String   @db.Uuid
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  rowVersion Int      @default(0)
+
+  @@unique([tenantId, opId])
+  @@unique([tenantId, series, invoiceNo])
+  @@index([tenantId, createdAt])
+  @@map("bills")
+}
+
+model BillLine {
+  id       String  @id @default(uuid()) @db.Uuid
+  billId   String  @db.Uuid
+  // 'service' | 'product' | 'package' | 'membership'
+  type     String
+  refId    String? @db.Uuid
+  name     String
+  quantity Int     @default(1)
+  /// Integer paise.
+  unitPrice        Int
+  discount         Int     @default(0)
+  taxRate          Decimal @db.Decimal(5, 2)
+  staffId          String? @db.Uuid
+  /// Integer paise. Snapshotted at bill time so a later rule change cannot
+  /// retroactively alter what a stylist already earned.
+  commissionAmount Int     @default(0)
+
+  @@index([billId])
+  @@map("bill_lines")
+}
+
+model Payment {
+  id        String  @id @default(uuid()) @db.Uuid
+  billId    String  @db.Uuid
+  // 'cash' | 'upi' | 'card' | 'wallet' | 'link'
+  method    String
+  /// Integer paise.
+  amount    Int
+  reference String?
+  status    String  @default("captured")
+
+  @@index([billId])
+  @@map("payments")
+}
+
+model Expense {
+  id        String   @id @default(uuid()) @db.Uuid
+  tenantId  String   @db.Uuid
+  category  String
+  /// Integer paise.
+  amount    Int
+  note      String?
+  date      DateTime @db.Date
+  createdBy String?  @db.Uuid
+  createdAt DateTime @default(now())
+
+  @@index([tenantId, date])
+  @@map("expenses")
+}
+
+/// Pre-leased invoice number blocks, one per terminal per series per financial
+/// year. The number printed on a receipt offline must be final; it cannot be
+/// assigned later on sync. Re-leased automatically at 80% consumed.
+model InvoiceLease {
+  tenantId      String @db.Uuid
+  terminalId    String @db.Uuid
+  series        String
+  financialYear String
+  blockStart    Int
+  blockEnd      Int
+  nextNumber    Int
+
+  @@id([tenantId, terminalId, series, financialYear, blockStart])
+  @@map("invoice_leases")
+}
+
+// ---------------------------------------------------------------- ledgers
+//
+// Append-only. No UPDATE, no DELETE, ever. A mistake is corrected by inserting
+// a reversing entry with reversesId set. This gives the audit trail for free
+// and makes a bill void a new row rather than a mutation.
+
+model WalletLedger {
+  id         String   @id @default(uuid()) @db.Uuid
+  tenantId   String   @db.Uuid
+  customerId String   @db.Uuid
+  /// Signed paise. Positive credits, negative redeems. Balance = SUM(delta).
+  delta      Int
+  reason     String
+  billId     String?  @db.Uuid
+  terminalId String   @db.Uuid
+  opId       String   @db.Uuid
+  reversesId String?  @db.Uuid
+  createdAt  DateTime @default(now())
+
+  @@index([tenantId, customerId])
+  @@map("wallet_ledger")
+}
+
+model StockLedger {
+  id         String   @id @default(uuid()) @db.Uuid
+  tenantId   String   @db.Uuid
+  productId  String   @db.Uuid
+  locationId String?  @db.Uuid
+  /// Signed units. +purchase, -sale, ±adjustment, -damage. On hand = SUM(delta).
+  delta      Int
+  reason     String
+  billId     String?  @db.Uuid
+  terminalId String   @db.Uuid
+  opId       String   @db.Uuid
+  reversesId String?  @db.Uuid
+  createdAt  DateTime @default(now())
+
+  @@index([tenantId, productId])
+  @@map("stock_ledger")
+}
+
+model SessionLedger {
+  id         String   @id @default(uuid()) @db.Uuid
+  tenantId   String   @db.Uuid
+  customerId String   @db.Uuid
+  packageId  String   @db.Uuid
+  serviceId  String?  @db.Uuid
+  /// Signed sessions. +purchase, -redemption. Remaining = SUM(delta).
+  delta      Int
+  billId     String?  @db.Uuid
+  terminalId String   @db.Uuid
+  opId       String   @db.Uuid
+  reversesId String?  @db.Uuid
+  createdAt  DateTime @default(now())
+
+  @@index([tenantId, customerId])
+  @@map("session_ledger")
+}
+
+model CustomerPackage {
+  id          String    @id @default(uuid()) @db.Uuid
+  tenantId    String    @db.Uuid
+  customerId  String    @db.Uuid
+  packageId   String    @db.Uuid
+  purchasedAt DateTime  @default(now())
+  expiresAt   DateTime?
+  billId      String?   @db.Uuid
+
+  @@index([tenantId, customerId])
+  @@map("customer_packages")
+}
+
+// ------------------------------------------------------------------- sync
+
+/// The most important table in the system. If the same opId arrives twice —
+/// flaky 4G, retry storm, a double-tap — the stored result is returned and
+/// nothing else happens. Without this you get duplicate bills.
+model ProcessedOp {
+  opId      String   @id @db.Uuid
+  tenantId  String   @db.Uuid
+  result    Json
+  createdAt DateTime @default(now())
+
+  @@index([tenantId])
+  @@map("processed_ops")
+}
+
+/// Deletes are never hard deletes, or clients can never learn about them.
+model Tombstone {
+  id        String   @id @default(uuid()) @db.Uuid
+  tenantId  String   @db.Uuid
+  tableName String
+  rowId     String
+  deletedAt DateTime @default(now())
+
+  @@index([tenantId, deletedAt])
+  @@map("tombstones")
+}
+
+/// Overdrafts, negative stock and permission violations detected on sync.
+/// Surfaced on the Exceptions screen — never silently dropped.
+model SyncException {
+  id         String   @id @default(uuid()) @db.Uuid
+  tenantId   String   @db.Uuid
+  type       String
+  detail     Json
+  status     String   @default("open")
+  resolvedBy String?  @db.Uuid
+  createdAt  DateTime @default(now())
+
+  @@index([tenantId, status])
+  @@map("sync_exceptions")
+}
+
+// -------------------------------------------------------------- site / cms
+
+model SiteSettings {
+  tenantId   String   @id @db.Uuid
+  domain     String?  @unique
+  template   String   @default("default")
+  theme      Json?
+  seo        Json?
+  social     Json?
+  gaId       String?
+  updatedAt  DateTime @updatedAt
+  rowVersion Int      @default(0)
+
+  @@map("site_settings")
+}
+
+model SiteSection {
+  id          String    @id @default(uuid()) @db.Uuid
+  tenantId    String    @db.Uuid
+  // hero | services | gallery | team | offers | testimonials | hours | contact | cta
+  type        String
+  position    Int       @default(0)
+  enabled     Boolean   @default(true)
+  data        Json
+  publishedAt DateTime?
+  updatedAt   DateTime  @updatedAt
+  rowVersion  Int       @default(0)
+
+  @@index([tenantId, position])
+  @@map("site_sections")
+}
+
+model SiteMedia {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @db.Uuid
+  url      String
+  alt      String?
+  kind     String
+
+  @@index([tenantId])
+  @@map("site_media")
+}

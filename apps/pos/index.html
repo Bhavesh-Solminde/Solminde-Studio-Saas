@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Salon Platform</title>
+    <!--
+      Theme inlined here on purpose. DESIGN.md: the theme is cached in IndexedDB and
+      inlined on boot, or every cold start flashes the default colour before the
+      stylesheet lands. Tenant accent is injected over --tenant-primary at runtime.
+    -->
+    <style>
+      :root {
+        --field: #f3f5f7;
+        --panel: #ffffff;
+        --ink: #1a1d21;
+        --ink-muted: #5a626b;
+        --hairline: #d9dee3;
+        --signal-blue: #0f5da8;
+        --blue-wash: #e8f0fa;
+        --signal-yellow: #f2b705;
+        --yellow-wash: #fdf3d6;
+        --alarm: #b3261e;
+        --tenant-primary: var(--signal-blue);
+      }
+      html,
+      body,
+      #root {
+        height: 100%;
+      }
+      body {
+        margin: 0;
+        background: var(--field);
+        color: var(--ink);
+        font-family: system-ui, sans-serif;
+        /* Tabular figures on every number that represents money. */
+        font-variant-numeric: tabular-nums;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

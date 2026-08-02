@@ -1,0 +1,28 @@
+{
+  "name": "salon-platform",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Offline-first, multi-tenant salon management platform",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "packageManager": "pnpm@10.33.0",
+  "scripts": {
+    "dev:pos": "pnpm --filter @salon/pos dev",
+    "dev:web": "pnpm --filter @salon/web dev",
+    "dev:api": "pnpm --filter @salon/api start:dev",
+    "build": "pnpm -r build",
+    "typecheck": "pnpm -r typecheck",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "detect": "impeccable detect apps/pos/src apps/web/src"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.8.0",
+    "globals": "^17.8.0",
+    "prettier": "^3.9.6",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.65.0"
+  }
+}
