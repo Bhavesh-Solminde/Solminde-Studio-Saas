@@ -12,7 +12,7 @@
     "dev:web": "pnpm --filter @salon/shared build && pnpm --filter @salon/web dev",
     "dev:api": "pnpm --filter @salon/shared build && pnpm --filter @salon/api start:dev",
     "build": "pnpm -r build",
-    "typecheck": "pnpm -r typecheck",
+    "typecheck": "pnpm --filter @salon/shared build && pnpm -r typecheck",
     "lint": "eslint .",
     "format": "prettier --write .",
     "detect": "impeccable detect apps/pos/src apps/web/src",
