@@ -39,9 +39,24 @@ export default tseslint.config(
 
   // Node surfaces: the API, and every config file that runs in Node.
   {
-    files: ['apps/api/**/*.ts', 'scripts/**/*.ts', '**/*.config.{ts,mts,mjs}'],
+    files: [
+      'apps/api/**/*.{ts,mts,mjs}',
+      'scripts/**/*.{ts,mts,mjs}',
+      '**/*.config.{ts,mts,mjs}',
+    ],
     languageOptions: {
       globals: { ...globals.node },
+    },
+  },
+
+  // NestJS resolves constructor dependencies from the `design:paramtypes`
+  // metadata TypeScript emits, which requires a VALUE import. `import type`
+  // erases the class and injection fails at runtime with a confusing
+  // "Nest can't resolve dependencies" error. The rule is actively harmful here.
+  {
+    files: ['apps/api/**/*.ts'],
+    rules: {
+      '@typescript-eslint/consistent-type-imports': 'off',
     },
   },
 );

@@ -85,12 +85,34 @@ model Role {
 }
 
 model UserPermissionOverride {
+  tenantId   String  @db.Uuid
   userId     String  @db.Uuid
   permission String
   granted    Boolean
 
   @@id([userId, permission])
+  @@index([tenantId])
   @@map("user_permission_overrides")
+}
+
+/// Refresh tokens are stored hashed and are revocable server-side.
+///
+/// Note what this table does NOT control: the POS's local session. That is a
+/// separate 12-24h device-bound credential held in IndexedDB, and it is
+/// deliberately not invalidated by API token expiry — the front desk must not
+/// be logged out mid-bill because the network has been down for three hours.
+model RefreshToken {
+  id         String    @id @default(uuid()) @db.Uuid
+  tenantId   String    @db.Uuid
+  userId     String    @db.Uuid
+  terminalId String?   @db.Uuid
+  tokenHash  String    @unique
+  expiresAt  DateTime
+  revokedAt  DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([tenantId, userId])
+  @@map("refresh_tokens")
 }
 
 model Terminal {
@@ -221,11 +243,13 @@ model Package {
 }
 
 model PackageItem {
+  tenantId  String @db.Uuid
   packageId String @db.Uuid
   serviceId String @db.Uuid
   quantity  Int
 
   @@id([packageId, serviceId])
+  @@index([tenantId])
   @@map("package_items")
 }
 
@@ -369,6 +393,9 @@ model Bill {
 
 model BillLine {
   id       String  @id @default(uuid()) @db.Uuid
+  // Denormalised from the parent bill so RLS can filter this table directly
+  // rather than through a subquery on every read.
+  tenantId String  @db.Uuid
   billId   String  @db.Uuid
   // 'service' | 'product' | 'package' | 'membership'
   type     String
@@ -390,6 +417,7 @@ model BillLine {
 
 model Payment {
   id        String  @id @default(uuid()) @db.Uuid
+  tenantId  String  @db.Uuid
   billId    String  @db.Uuid
   // 'cash' | 'upi' | 'card' | 'wallet' | 'link'
   method    String

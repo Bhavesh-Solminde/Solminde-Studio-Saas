@@ -1,7 +1,7 @@
 import { Injectable, type OnModuleDestroy, type OnModuleInit } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
-import { currentTenant } from './tenant-context';
+import { currentTenant } from './tenant-context.js';
 
 /**
  * ONE PrismaClient, module-scoped, never per request.
