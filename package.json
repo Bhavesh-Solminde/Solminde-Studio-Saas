@@ -8,6 +8,7 @@
   },
   "packageManager": "pnpm@10.33.0",
   "scripts": {
+    "dev": "pnpm --filter @salon/shared build && pnpm --parallel --filter=@salon/api --filter=@salon/web --filter=@salon/pos run dev",
     "dev:pos": "pnpm --filter @salon/shared build && pnpm --filter @salon/pos dev",
     "dev:web": "pnpm --filter @salon/shared build && pnpm --filter @salon/web dev",
     "dev:api": "pnpm --filter @salon/shared build && pnpm --filter @salon/api start:dev",

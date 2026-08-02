@@ -3,7 +3,8 @@
   "version": "0.0.0",
   "private": true,
   "scripts": {
-    "start:dev": "nest start --watch",
+    "start:dev": "node scripts/free-port.mjs && nest start --watch",
+    "dev": "pnpm start:dev",
     "start": "node dist/main.js",
     "build": "nest build",
     "typecheck": "tsc -p tsconfig.json --noEmit",

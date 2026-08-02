@@ -141,7 +141,9 @@ const t: Record<string, React.CSSProperties> = {
   label: { fontSize: 12, fontWeight: 600, color: '#5a626b', marginTop: 14 },
   input: { padding: '10px 12px', fontSize: 15, border: '1px solid #d9dee3', borderRadius: 6, background: '#fff' },
   slots: { display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 4 },
-  slot: { padding: '8px 12px', fontSize: 14, border: '1px solid #d9dee3', borderRadius: 6, background: '#fff', cursor: 'pointer' },
+  // Longhand, not the `border` shorthand: slotActive overrides borderColor alone, and
+  // React warns when a shorthand and its longhand fight over the same value on rerender.
+  slot: { padding: '8px 12px', fontSize: 14, borderWidth: 1, borderStyle: 'solid', borderColor: '#d9dee3', borderRadius: 6, background: '#fff', cursor: 'pointer' },
   slotActive: { background: '#0f5da8', color: '#fff', borderColor: '#0f5da8' },
   muted: { fontSize: 14, color: '#5a626b' },
   submit: { marginTop: 22, padding: '12px 16px', fontSize: 15, fontWeight: 600, color: '#fff', background: '#0f5da8', border: 'none', borderRadius: 6, cursor: 'pointer' },
