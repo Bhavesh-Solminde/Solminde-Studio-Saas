@@ -1,0 +1,34 @@
+meta {
+  name: Report GST Summary
+  type: http
+  seq: 26
+}
+
+get {
+  url: {{baseUrl}}/api/reports/gst
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{accessToken}}
+}
+
+assert {
+  res.status: eq 200
+}
+
+tests {
+  test("GST is summarised rate-wise with a totals row", function () {
+    expect(res.body.byRate).to.be.an("array");
+    expect(res.body.totals).to.have.property("taxable");
+    expect(res.body.totals).to.have.property("cgst");
+    expect(res.body.totals).to.have.property("sgst");
+  });
+}
+
+docs {
+  The rate-wise shape is what a GSTR-1 export needs. Tax is recomputed from bill
+  lines with the same shared split used at bill time, so the return can never
+  disagree with what was charged.
+}

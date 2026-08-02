@@ -1,0 +1,39 @@
+meta {
+  name: Admin Feature Dependency
+  type: http
+  seq: 29
+}
+
+post {
+  url: {{baseUrl}}/api/admin/features/billing
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{accessToken}}
+}
+
+body:json {
+  {
+    "enabled": false
+  }
+}
+
+assert {
+  res.status: eq 400
+}
+
+tests {
+  test("disabling a feature others depend on is blocked server-side", function () {
+    // commissions and packages depend on billing; the toggle endpoint enforces
+    // that, not the UI. The message names what must be disabled first.
+    expect(res.body.message).to.be.a("string");
+  });
+}
+
+docs {
+  Entitlement dependencies are enforced in the toggle endpoint, never only in
+  the UI. Turning off `billing` while `commissions`/`packages` are on is rejected
+  with a 400 — hiding the toggle in the client would not be access control.
+}

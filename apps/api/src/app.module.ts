@@ -39,6 +39,11 @@ import { WhatsappSendHandler } from './messaging/whatsapp-send.handler.js';
 import { MessagesController } from './messaging/messages.controller.js';
 import { PAYMENT_PROVIDER, StubPaymentProvider } from './payments/payment.provider.js';
 import { PaymentsController } from './payments/payments.controller.js';
+import { ReportsService } from './reports/reports.service.js';
+import { ReportsController } from './reports/reports.controller.js';
+import { OpsController } from './ops/ops.controller.js';
+import { ImportService } from './admin/import.service.js';
+import { AdminController } from './admin/admin.controller.js';
 
 @Controller()
 class HealthController {
@@ -52,7 +57,7 @@ class HealthController {
   @Get('health')
   async health() {
     await this.prisma.$queryRaw`SELECT 1`;
-    return { ok: true, stage: 4 };
+    return { ok: true, stage: 5 };
   }
 }
 
@@ -84,6 +89,9 @@ const OP_HANDLERS = [
     PublicBookingController,
     PaymentsController,
     MessagesController,
+    ReportsController,
+    OpsController,
+    AdminController,
   ],
   providers: [
     PrismaService,
@@ -98,6 +106,8 @@ const OP_HANDLERS = [
     AppointmentService,
     AvailabilityService,
     MessagingService,
+    ReportsService,
+    ImportService,
     { provide: MESSAGING_PROVIDER, useClass: StubMessagingProvider },
     { provide: PAYMENT_PROVIDER, useClass: StubPaymentProvider },
     SyncService,

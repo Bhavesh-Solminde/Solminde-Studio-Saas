@@ -1,0 +1,27 @@
+meta {
+  name: Report Retention
+  type: http
+  seq: 27
+}
+
+get {
+  url: {{baseUrl}}/api/reports/retention?days=1
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{accessToken}}
+}
+
+assert {
+  res.status: eq 200
+}
+
+tests {
+  test("retention returns a lapsed win-back list and counts", function () {
+    expect(res.body.lapsed).to.be.an("array");
+    expect(res.body).to.have.property("activeCount");
+    expect(res.body).to.have.property("lapsedCount");
+  });
+}

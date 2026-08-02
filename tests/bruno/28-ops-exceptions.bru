@@ -1,0 +1,33 @@
+meta {
+  name: Ops Exceptions
+  type: http
+  seq: 28
+}
+
+get {
+  url: {{baseUrl}}/api/ops/exceptions
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{accessToken}}
+}
+
+assert {
+  res.status: eq 200
+}
+
+tests {
+  test("the exceptions tray lists open, non-conflict exceptions", function () {
+    expect(res.body.rows).to.be.an("array");
+    const conflicts = res.body.rows.filter((r) => r.type === "appointment_conflict");
+    expect(conflicts.length).to.equal(0);
+  });
+}
+
+docs {
+  Overdrafts, negative stock, permission violations and expired/empty package
+  redemptions land here for a human — never silently dropped. Double-bookings go
+  to /ops/conflicts instead; this endpoint excludes them.
+}

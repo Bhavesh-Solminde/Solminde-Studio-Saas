@@ -45,6 +45,9 @@ export interface SalonTestBridge {
   cancelAppointment(id: string, reason?: string): Promise<void>;
   findAppointment(id: string): Promise<unknown>;
   countBookedAppointments(): Promise<number>;
+
+  // --- Stage 5: onboarding ---
+  findServiceByName(name: string): Promise<unknown>;
 }
 
 declare global {
@@ -133,5 +136,7 @@ export function installTestBridge(): void {
     cancelAppointment: (id, reason) => cancelAppointment(id, reason),
     findAppointment: (id) => db.appointments.get(id),
     countBookedAppointments: () => db.appointments.where('status').equals('booked').count(),
+
+    findServiceByName: (name) => db.services.filter((svc) => svc.name === name).first(),
   };
 }

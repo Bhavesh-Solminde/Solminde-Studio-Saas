@@ -4,9 +4,11 @@ import { startSyncWorker } from './sync';
 import { CustomersView } from './CustomersView';
 import { BillingView } from './BillingView';
 import { AppointmentsView } from './AppointmentsView';
+import { ReportsView } from './ReportsView';
+import { AdminView } from './AdminView';
 import { s } from './styles';
 
-type Tab = 'billing' | 'appointments' | 'customers';
+type Tab = 'billing' | 'appointments' | 'customers' | 'reports' | 'admin';
 
 /**
  * The POS shell: a permanent connection badge, a pending-sync counter, and two
@@ -77,12 +79,26 @@ export function App() {
         >
           Customers
         </button>
+        <button
+          style={{ ...s.tab, ...(tab === 'reports' ? s.tabActive : {}) }}
+          onClick={() => setTab('reports')}
+        >
+          Reports
+        </button>
+        <button
+          style={{ ...s.tab, ...(tab === 'admin' ? s.tabActive : {}) }}
+          onClick={() => setTab('admin')}
+        >
+          Setup
+        </button>
       </nav>
 
       <main style={s.main}>
         {tab === 'billing' && <BillingView />}
         {tab === 'appointments' && <AppointmentsView />}
         {tab === 'customers' && <CustomersView />}
+        {tab === 'reports' && <ReportsView />}
+        {tab === 'admin' && <AdminView />}
       </main>
     </div>
   );

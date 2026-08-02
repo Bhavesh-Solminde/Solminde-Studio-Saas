@@ -1,0 +1,50 @@
+meta {
+  name: Admin CSV Import
+  type: http
+  seq: 30
+}
+
+post {
+  url: {{baseUrl}}/api/admin/import/customers
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{accessToken}}
+}
+
+script:pre-request {
+  const p1 = "94" + Math.floor(10000000 + Math.random() * 89999999);
+  const p2 = "94" + Math.floor(10000000 + Math.random() * 89999999);
+  // A good row, a good row, and a row missing the phone — the last is skipped.
+  // Newlines are written as the two-char sequence \n so the interpolated JSON
+  // body stays valid; JSON.parse turns them into real line breaks server-side.
+  bru.setEnvVar(
+    "importCsv",
+    "name,phone,email\\nImport One," + p1 + ",one@x.test\\nImport Two," + p2 + ",\\nNo Phone,,z@x.test",
+  );
+}
+
+body:json {
+  {
+    "csv": "{{importCsv}}"
+  }
+}
+
+assert {
+  res.status: eq 201
+}
+
+tests {
+  test("good rows import, a row missing a required field is skipped not fatal", function () {
+    expect(res.body.imported).to.equal(2);
+    expect(res.body.skipped).to.equal(1);
+  });
+}
+
+docs {
+  Onboarding import: how a salon's existing customers get in without a developer
+  touching the database. One bad row does not sink an 800-row file — it is
+  skipped and counted. Customers upsert on phone, so a re-run does not duplicate.
+}

@@ -259,3 +259,67 @@ queue-first design already supports that — the worker is simply not built yet.
 - **Timezone-correct business hours and a per-staff roster.** Availability uses
   a fixed UTC open/close window; real salons need local-day hours and per-stylist
   shifts. Lands with the scheduling surface.
+
+---
+
+## Stage 5 — Reports and ops surfaces
+
+### Reports are pure read-side derivation — no new source of truth
+
+**Decision.** Every report (revenue per stylist, GST, retention, chair
+utilisation, retail attachment, package liability) is computed at query time
+from the bills and ledgers earlier stages already wrote. Nothing is stored as a
+precomputed total.
+
+**Why.** It is the same discipline as SUM(delta) balances: a figure recomputed
+from what happened cannot drift from what happened. In particular the GST
+summary recomputes the CGST/SGST split from bill lines with the *same shared
+`splitGst`* used at bill time, so a GSTR-1 export can never disagree with what
+was actually charged on the printed invoices.
+
+### "Last visit" is derived from bills, not a stored column
+
+**Decision.** The lapsed-client win-back list derives each customer's last visit
+from the most recent bill (`MAX(createdAt)` per customer), rather than reading a
+`customers.lastVisitAt` column.
+
+**Why.** A stored `lastVisitAt` would have to be updated on every bill — one more
+write to keep in sync, and a source of drift if a bill is created offline or
+voided. Deriving it from bills means retention can never disagree with billing
+history. The schema's `lastVisitAt` stays unused for now; wiring it as a cache
+(like `local_balances`) is a later optimisation, not a correctness need.
+
+### Disabling a feature is non-destructive — structurally, not by a flag
+
+**Decision.** Disabling Packages stops new package sales but leaves existing
+prepaid sessions redeemable, with no special "disabled-but-has-data" resolver
+state.
+
+**Why it falls out for free.** Selling a package is the `package.purchase` op,
+which requires the `packages` feature — disabling the feature blocks it.
+Redeeming a session is a line inside `bill.create`, which requires only
+`billing` — so redemption keeps working regardless of the `packages` toggle.
+The spec's "disabling is read-only, never destructive" is therefore enforced by
+where each capability's feature gate sits, not by a stateful resolver. The admin
+UI still shows the outstanding liability (customers × sessions × per-session
+value) before the owner confirms, so the decision is informed.
+
+### Blocker: CI typechecked before it built `@salon/shared`
+
+**What happened.** CI ran `pnpm typecheck` before `pnpm build`, so
+`packages/shared/dist` did not exist yet and `apps/pos`/`apps/web` failed with
+"Cannot find module '@salon/shared'" — every other type error in the run
+cascaded from that one missing module. It passed locally only because a previous
+build had left `dist` in place. Latent since Stage 1; surfaced when Stage 4's
+branch CI ran.
+
+**Fix.** Two ways, so it cannot recur: the root `typecheck` script builds shared
+first, and `@salon/shared` gained a `prepare` script so `pnpm install` always
+produces `dist` (fresh clones and CI included). Verified by deleting `dist` and
+reproducing CI's exact sequence.
+
+### Deferred
+
+- **`customers.lastVisitAt` as a maintained cache** — derived on read for now.
+- **Peak-hour heatmap, service mix, membership/package liability trends** (P1
+  reports) — the aggregation primitives exist; these are additional shapes.

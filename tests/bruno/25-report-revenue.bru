@@ -1,0 +1,29 @@
+meta {
+  name: Report Revenue By Stylist
+  type: http
+  seq: 25
+}
+
+get {
+  url: {{baseUrl}}/api/reports/revenue-by-stylist
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{accessToken}}
+}
+
+assert {
+  res.status: eq 200
+}
+
+tests {
+  test("revenue is aggregated per stylist for the current month", function () {
+    expect(res.body.rows).to.be.an("array");
+    if (res.body.rows.length > 0) {
+      expect(res.body.rows[0]).to.have.property("total");
+      expect(res.body.rows[0]).to.have.property("services");
+    }
+  });
+}

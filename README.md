@@ -58,9 +58,9 @@ the build if this ever regresses.
 ## Testing
 
 ```bash
-pnpm test:unit   # node:test — GST/bill maths, wallet settlement, commissions
-pnpm test:api    # Bruno — auth, isolation, billing, commissions, booking, messaging
-pnpm test:e2e    # Playwright — the Stage 1–4 offline/booking gates
+pnpm test:unit   # node:test — GST/bill maths, wallet settlement, commissions, CSV
+pnpm test:api    # Bruno — auth, isolation, billing, commissions, booking, reports
+pnpm test:e2e    # Playwright — the Stage 1–5 gates
 pnpm test        # all three
 ```
 
@@ -136,7 +136,20 @@ packages/
   the slot stops being offered, and the booking is pulled down onto the front
   desk's POS appointment book.
 
-- **Stage 5 — Reports and ops surfaces.** Next.
+- **Stage 5 — Reports and ops surfaces.** Complete and verified against Supabase.
+  Revenue per stylist, GST/GSTR-1 summary, chair utilisation, retail attachment,
+  client retention + lapsed win-back — all pure read-side aggregation over the
+  ledgers, with CSV export (`?format=csv`) on the money reports. Exceptions and
+  Conflicts trays with resolve, feature-toggle admin with server-enforced
+  dependencies and the package-liability confirmation, and CSV import for
+  customers, services and products.
+
+  **Gate passed:** a service imported from CSV through the admin API flows down
+  to the POS catalogue on sync and is billed — a salon set up from zero to first
+  bill without a developer touching the database.
+
+- **Stage 6 — Presentation layer.** Next (theming, design-research pass, section
+  CMS, one site template, custom domains).
 
 ## Licence
 
