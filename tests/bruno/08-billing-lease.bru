@@ -1,0 +1,66 @@
+meta {
+  name: Billing Lease
+  type: http
+  seq: 8
+}
+
+post {
+  url: {{baseUrl}}/api/billing/lease
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{accessToken}}
+}
+
+body:json {
+  {
+    "terminalId": "00000000-0000-4000-8000-0000000000b0",
+    "series": "BRUNO",
+    "terminalCode": "A"
+  }
+}
+
+script:post-response {
+  // Bruno's sandbox has no global crypto — build v4 ids by hand, as in login.
+  function uuidv4() {
+    return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, function (c) {
+      const r = (Math.random() * 16) | 0;
+      const v = c === "x" ? r : (r & 0x3) | 0x8;
+      return v.toString(16);
+    });
+  }
+
+  bru.setEnvVar("billId", uuidv4());
+  bru.setEnvVar("billOpId", uuidv4());
+  bru.setEnvVar("walletOpId", uuidv4());
+  bru.setEnvVar("voidOpId", uuidv4());
+
+  // The final invoice number is assembled from the leased block, exactly as the
+  // POS does before it prints.
+  const n = String(res.body.nextNumber).padStart(4, "0");
+  bru.setEnvVar("invoiceNo", res.body.series + "/" + res.body.financialYear + "/A/" + n);
+}
+
+assert {
+  res.status: eq 201
+  res.body.nextNumber: isDefined
+}
+
+tests {
+  test("a block of 300 numbers is leased", function () {
+    expect(res.body.blockEnd - res.body.blockStart).to.equal(299);
+  });
+
+  test("the first number to consume is the block start", function () {
+    expect(res.body.nextNumber).to.equal(res.body.blockStart);
+  });
+}
+
+docs {
+  Invoice numbers are pre-leased in per-terminal blocks so the number printed on
+  a receipt is final the instant it prints — never assigned later on sync. Two
+  terminals leasing the same series must get disjoint ranges; the server
+  serialises the high-water mark with an advisory lock to guarantee it.
+}

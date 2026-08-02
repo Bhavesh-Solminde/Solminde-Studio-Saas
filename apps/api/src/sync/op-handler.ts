@@ -11,6 +11,22 @@ export interface OpResult {
 }
 
 /**
+ * The identity of the op being applied.
+ *
+ * A bill and every ledger entry it produces must carry the op's `opId` — it is
+ * both the idempotency key and the audit link back to the originating device
+ * action, and it is what a reversing entry points at when a bill is voided.
+ * `terminalId` is likewise stamped onto ledger rows so a per-terminal cash
+ * reconciliation can attribute takings. Both come from the outbox op, not from
+ * the JWT, because the op may have been created on a terminal hours before it
+ * finally syncs.
+ */
+export interface OpMeta {
+  readonly opId: string;
+  readonly terminalId: string;
+}
+
+/**
  * One syncable operation.
  *
  * Adding a new operation type is ONE new class and ZERO changes to the sync
@@ -24,7 +40,7 @@ export abstract class OpHandler<P = unknown> {
   abstract readonly requiredFeatures: readonly FeatureKey[];
   abstract readonly requiredPermissions: readonly Permission[];
 
-  abstract apply(tx: PrismaTx, ctx: TenantCtx, payload: P): Promise<OpResult>;
+  abstract apply(tx: PrismaTx, ctx: TenantCtx, payload: P, op: OpMeta): Promise<OpResult>;
 }
 
 /** Marks a provider as an OpHandler so the registry can discover it. */

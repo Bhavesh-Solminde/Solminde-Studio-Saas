@@ -1,0 +1,28 @@
+meta {
+  name: Billing Wallet Balance
+  type: http
+  seq: 12
+}
+
+get {
+  url: {{baseUrl}}/api/billing/wallet/{{customerId}}
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{accessToken}}
+}
+
+assert {
+  res.status: eq 200
+}
+
+tests {
+  test("wallet ledger balances to 800 after one redemption", function () {
+    // 1000 topped up minus 200 redeemed on the bill. If the replay in seq 11
+    // had double-redeemed, this would read 600 and fail — which is exactly the
+    // regression this assertion guards.
+    expect(res.body.balance).to.equal(80000);
+  });
+}

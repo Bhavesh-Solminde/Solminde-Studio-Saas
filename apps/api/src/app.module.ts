@@ -13,6 +13,13 @@ import { OP_HANDLER, type OpHandler } from './sync/op-handler.js';
 import { SyncService } from './sync/sync.service.js';
 import { SyncController } from './sync/sync.controller.js';
 import { CustomerCreateHandler } from './customers/customer-create.handler.js';
+import { LedgerService } from './billing/ledger.service.js';
+import { InvoiceLeaseService } from './billing/invoice-lease.service.js';
+import { BillingController } from './billing/billing.controller.js';
+import { BillCreateHandler } from './billing/bill-create.handler.js';
+import { BillVoidHandler } from './billing/bill-void.handler.js';
+import { WalletTopupHandler } from './billing/wallet-topup.handler.js';
+import { DayCloseHandler } from './billing/day-close.handler.js';
 
 @Controller()
 class HealthController {
@@ -26,7 +33,7 @@ class HealthController {
   @Get('health')
   async health() {
     await this.prisma.$queryRaw`SELECT 1`;
-    return { ok: true, stage: 1 };
+    return { ok: true, stage: 2 };
   }
 }
 
@@ -35,16 +42,24 @@ class HealthController {
  * operation is one new class plus one line in this array — the sync engine
  * itself never changes.
  */
-const OP_HANDLERS = [CustomerCreateHandler];
+const OP_HANDLERS = [
+  CustomerCreateHandler,
+  BillCreateHandler,
+  BillVoidHandler,
+  WalletTopupHandler,
+  DayCloseHandler,
+];
 
 @Module({
-  controllers: [HealthController, AuthController, SyncController],
+  controllers: [HealthController, AuthController, SyncController, BillingController],
   providers: [
     PrismaService,
     AuthService,
     TokenService,
     EntitlementsService,
     PermissionsService,
+    LedgerService,
+    InvoiceLeaseService,
     SyncService,
     ...OP_HANDLERS,
     {

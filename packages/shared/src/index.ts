@@ -1,4 +1,6 @@
 export * from './money.js';
 export * from './ledger.js';
+export * from './bill.js';
+export * from './escpos.js';
 export * from './sync.js';
 export * from './permissions.js';

@@ -1,0 +1,28 @@
+meta {
+  name: Billing Wallet After Void
+  type: http
+  seq: 14
+}
+
+get {
+  url: {{baseUrl}}/api/billing/wallet/{{customerId}}
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{accessToken}}
+}
+
+assert {
+  res.status: eq 200
+}
+
+tests {
+  test("voiding the bill restored the redeemed wallet amount", function () {
+    // Back to the full 1000 topped up: the void's reversing entry cancelled the
+    // 200 redemption exactly. The ledger sums correctly with sale and reversal
+    // both present, and history stays legible.
+    expect(res.body.balance).to.equal(100000);
+  });
+}

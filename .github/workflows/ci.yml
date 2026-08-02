@@ -31,6 +31,12 @@ jobs:
       - run: pnpm lint
       - run: pnpm build
 
+      # Pure money maths — GST splits, bill totals, wallet settlement, invoice
+      # numbering. Needs no database or browser, so it runs on every PR where
+      # the Bruno and Playwright suites (which need Supabase) cannot.
+      - name: Unit tests (shared money maths)
+        run: pnpm test:unit
+
       # The spec's most expensive mistake, caught mechanically rather than
       # after Stage 4. Any stored running total fails the build.
       - name: Assert no balance columns

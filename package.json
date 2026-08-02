@@ -16,9 +16,10 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "detect": "impeccable detect apps/pos/src apps/web/src",
-    "test:api": "bru run --env local --cwd tests/bruno",
+    "test:unit": "pnpm --filter @salon/shared test",
+    "test:api": "cd tests/bruno && bru run --env local",
     "test:e2e": "playwright test",
-    "test": "pnpm test:api && pnpm test:e2e",
+    "test": "pnpm test:unit && pnpm test:api && pnpm test:e2e",
     "db:setup": "pnpm --filter @salon/api prisma:migrate && pnpm --filter @salon/api rls:apply && pnpm --filter @salon/api db:seed"
   },
   "devDependencies": {

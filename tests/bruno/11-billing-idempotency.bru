@@ -1,0 +1,67 @@
+meta {
+  name: Billing Idempotency
+  type: http
+  seq: 11
+}
+
+post {
+  url: {{baseUrl}}/api/sync/push
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{accessToken}}
+}
+
+body:json {
+  {
+    "ops": [
+      {
+        "opId": "{{billOpId}}",
+        "tenantId": "{{tenantId}}",
+        "terminalId": "00000000-0000-4000-8000-0000000000b0",
+        "localSeq": 2,
+        "type": "bill.create",
+        "payload": {
+          "id": "{{billId}}",
+          "invoiceNo": "{{invoiceNo}}",
+          "series": "BRUNO",
+          "customerId": "{{customerId}}",
+          "createdAt": 1754130000000,
+          "lines": [
+            { "type": "service", "refId": "aaaaaaaa-0000-4000-8000-000000000001", "name": "Haircut", "quantity": 1, "unitPrice": 50000, "taxRate": 18 }
+          ],
+          "payments": [ { "method": "cash", "amount": 59000 } ]
+        },
+        "status": "pending",
+        "attempts": 0,
+        "createdAt": 1
+      }
+    ]
+  }
+}
+
+assert {
+  res.status: eq 201
+}
+
+tests {
+  test("replayed bill op is deduped, not re-applied", function () {
+    expect(res.body.outcomes[0].status).to.equal("acked");
+    expect(res.body.outcomes[0].duplicate).to.equal(true);
+  });
+
+  test("the stored result is returned unchanged", function () {
+    expect(res.body.outcomes[0].result.id).to.equal(bru.getEnvVar("billId"));
+    expect(res.body.outcomes[0].result.total).to.equal(94400);
+  });
+}
+
+docs {
+  The most important guarantee for money: the same bill op delivered twice — a
+  retry storm, flaky 4G, a double-tapped Save — creates exactly one bill and
+  redeems the wallet exactly once. Without processed_ops this would be a
+  duplicate bill, and duplicate bills lose the client. The wallet-balance check
+  in seq 12 confirms the redemption was not applied twice.
+}

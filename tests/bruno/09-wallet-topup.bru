@@ -1,0 +1,49 @@
+meta {
+  name: Wallet Topup
+  type: http
+  seq: 9
+}
+
+post {
+  url: {{baseUrl}}/api/sync/push
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{accessToken}}
+}
+
+body:json {
+  {
+    "ops": [
+      {
+        "opId": "{{walletOpId}}",
+        "tenantId": "{{tenantId}}",
+        "terminalId": "00000000-0000-4000-8000-0000000000b0",
+        "localSeq": 1,
+        "type": "wallet.topup",
+        "payload": { "customerId": "{{customerId}}", "amount": 100000 },
+        "status": "pending",
+        "attempts": 0,
+        "createdAt": 1
+      }
+    ]
+  }
+}
+
+assert {
+  res.status: eq 201
+}
+
+tests {
+  test("wallet top-up is acked", function () {
+    expect(res.body.outcomes[0].status).to.equal("acked");
+  });
+}
+
+docs {
+  Loads a prepaid advance (₹1000) so the next bill has wallet to redeem. The
+  balance is never stored — it is one positive entry on the wallet ledger, and
+  the balance is SUM(delta).
+}
