@@ -10,17 +10,11 @@ import {
 } from '@nestjs/common';
 import { z } from 'zod';
 import { PrismaService } from '../prisma.service.js';
-import { tenantStorage, type TenantCtx } from '../tenant-context.js';
+import type { TenantCtx } from '../tenant-context.js';
+import { PublicTenantService } from '../public/public-tenant.service.js';
 import { AvailabilityService } from './availability.service.js';
 import { AppointmentService } from './appointment.service.js';
 import { MessagingService } from '../messaging/messaging.service.js';
-
-interface PublicTenantRow {
-  tenant_id: string;
-  name: string;
-  timezone: string;
-  status: string;
-}
 
 const bookBody = z.object({
   customerName: z.string().min(1).max(120),
@@ -47,30 +41,16 @@ const bookBody = z.object({
 export class PublicBookingController {
   constructor(
     private readonly prisma: PrismaService,
+    private readonly publicTenant: PublicTenantService,
     private readonly availabilitySvc: AvailabilityService,
     private readonly appointments: AppointmentService,
     private readonly messaging: MessagingService,
   ) {}
 
-  private async resolveTenant(slug: string): Promise<PublicTenantRow> {
-    const rows = await this.prisma.$queryRaw<PublicTenantRow[]>`
-      SELECT * FROM app_public_tenant(${slug})
-    `;
-    const found = rows[0];
-    if (!found || found.status !== 'active') throw new NotFoundException('Salon not found');
-    return found;
-  }
-
-  /** Run `fn` inside the resolved tenant's context (no user — this is public). */
-  private async asTenant<T>(tenantId: string, fn: () => Promise<T>): Promise<T> {
-    const ctx: TenantCtx = { tenantId, userId: '', role: 'public' };
-    return tenantStorage.run(ctx, fn);
-  }
-
   @Get(':slug/services')
   async services(@Param('slug') slug: string) {
-    const tenant = await this.resolveTenant(slug);
-    return this.asTenant(tenant.tenant_id, () =>
+    const tenant = await this.publicTenant.resolve(slug);
+    return this.publicTenant.run(tenant.tenantId, () =>
       this.prisma.withTenant((tx) =>
         tx.service.findMany({
           where: { active: true },
@@ -88,8 +68,8 @@ export class PublicBookingController {
     @Query('date') date: string,
     @Query('staffId') staffId?: string,
   ) {
-    const tenant = await this.resolveTenant(slug);
-    const slots = await this.asTenant(tenant.tenant_id, () =>
+    const tenant = await this.publicTenant.resolve(slug);
+    const slots = await this.publicTenant.run(tenant.tenantId, () =>
       this.availabilitySvc.slots({ serviceId, staffId, date }),
     );
     return { slots };
@@ -98,10 +78,10 @@ export class PublicBookingController {
   @Post(':slug/book')
   async book(@Param('slug') slug: string, @Body() raw: unknown) {
     const body = bookBody.parse(raw);
-    const tenant = await this.resolveTenant(slug);
+    const tenant = await this.publicTenant.resolve(slug);
 
-    return this.asTenant(tenant.tenant_id, async () => {
-      const ctx: TenantCtx = { tenantId: tenant.tenant_id, userId: '', role: 'public' };
+    return this.publicTenant.run(tenant.tenantId, async () => {
+      const ctx: TenantCtx = { tenantId: tenant.tenantId, userId: '', role: 'public' };
 
       return this.prisma.withTenant(async (tx) => {
         const service = await tx.service.findUnique({ where: { id: body.serviceId } });
@@ -119,9 +99,9 @@ export class PublicBookingController {
         // A booking customer is identified by phone, upserted so a repeat
         // visitor is one record rather than a duplicate on every booking.
         const customer = await tx.customer.upsert({
-          where: { tenantId_phone: { tenantId: tenant.tenant_id, phone: body.customerPhone } },
+          where: { tenantId_phone: { tenantId: tenant.tenantId, phone: body.customerPhone } },
           create: {
-            tenantId: tenant.tenant_id,
+            tenantId: tenant.tenantId,
             name: body.customerName,
             phone: body.customerPhone,
           },

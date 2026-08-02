@@ -1,0 +1,25 @@
+{
+  "_comment": "Reference set for the salon site template design pass (spec §12). Three buckets: premium Indian salons, international best-in-class salon/spa, and adjacent verticals with the same job-to-be-done (boutique fitness, dental, aesthetic clinics). Screenshots are internal analysis only — gitignored, never shipped, never shown to clients. No copy, photography, logos or distinctive expression is reused.",
+  "sites": [
+    { "name": "Enrich Salons", "bucket": "india", "url": "https://enrichsalon.com/" },
+    { "name": "Naturals", "bucket": "india", "url": "https://naturals.in/" },
+    { "name": "BBLUNT", "bucket": "india", "url": "https://www.bblunt.com/" },
+    { "name": "Lakme Salon", "bucket": "india", "url": "https://www.lakmesalon.in/" },
+    { "name": "Looks Salon", "bucket": "india", "url": "https://www.looksalon.com/" },
+    { "name": "Jean-Claude Biguine India", "bucket": "india", "url": "https://www.jcbindia.com/" },
+
+    { "name": "Aveda", "bucket": "international", "url": "https://www.aveda.com/" },
+    { "name": "Drybar", "bucket": "international", "url": "https://www.thedrybar.com/" },
+    { "name": "Paul Mitchell", "bucket": "international", "url": "https://www.paulmitchell.com/" },
+    { "name": "Toni & Guy UK", "bucket": "international", "url": "https://www.toniandguy.com/" },
+    { "name": "Rush Hair", "bucket": "international", "url": "https://www.rush.co.uk/" },
+    { "name": "Sassoon", "bucket": "international", "url": "https://sassoon-academy.com/" },
+
+    { "name": "Equinox", "bucket": "adjacent", "url": "https://www.equinox.com/" },
+    { "name": "Barry's", "bucket": "adjacent", "url": "https://www.barrys.com/" },
+    { "name": "ClassPass", "bucket": "adjacent", "url": "https://classpass.com/" },
+    { "name": "Tend Dental", "bucket": "adjacent", "url": "https://www.hellotend.com/" },
+    { "name": "Ideal Image", "bucket": "adjacent", "url": "https://www.idealimage.com/" },
+    { "name": "Mindbody", "bucket": "adjacent", "url": "https://www.mindbodyonline.com/" }
+  ]
+}

@@ -323,3 +323,69 @@ reproducing CI's exact sequence.
 - **`customers.lastVisitAt` as a maintained cache** — derived on read for now.
 - **Peak-hour heatmap, service mix, membership/package liability trends** (P1
   reports) — the aggregation primitives exist; these are additional shapes.
+
+---
+
+## Stage 6 — Presentation layer
+
+### The template is designed from evidence, then thrown away the evidence
+
+**Decision.** Ran the spec's design-research pass: `scripts/design-research/`
+Playwright-captures 15 reference sites (Indian salons, international salon/spa,
+adjacent verticals) at desktop and mobile, and a one-page **pattern report**
+records the conventions. The one template is built from that report plus
+`DESIGN.md` — never from any single site.
+
+**Guardrail, enforced by structure.** Screenshots are analysis-only: `out/` is
+gitignored, so they cannot be committed or shipped. The committed artefacts are
+the harness, the site list and the written report. No copy, photography, logo or
+distinctive expression is reused — only category conventions, which are free.
+
+### Draft/publish is `publishedAt` + ISR, not a second data column
+
+**Decision.** A section has one `data` (the draft) and a `publishedAt`. The
+public read returns only sections with `publishedAt` set; Publish stamps every
+section and revalidates the site's ISR cache. There is no separate
+"published data" copy.
+
+**Why it holds.** Two mechanisms combine: the public API filters to published
+sections (so an unpublished section is invisible), and the public page is
+ISR-cached and only revalidated on Publish (so edits to an already-published
+section do not reach customers until the next Publish). A separate snapshot
+column would be a second source of truth to keep in sync for no gain.
+
+### Contrast is enforced with pure black/white, not a near-black
+
+**Decision.** `readableTextOn` chooses between `#000000` and `#ffffff`, not a
+near-black. A mid-tone accent (luminance ~0.2) only reaches ~4.3:1 against a
+near-black — under WCAG AA — while pure black clears it. Since the whole point
+is that the guarantee actually holds for any accent the owner picks, the
+candidates have to be the extremes. Theme is applied live (cosmetic, immediate),
+so it sits outside the draft/publish cycle.
+
+### Blocker: Next 16 renamed and re-signed two caching APIs
+
+Two Next 16 changes surfaced building the site:
+- `middleware.ts` is deprecated in favour of `proxy.ts` (`export default
+  proxy`). Renamed; the custom-domain host→slug rewrite is unchanged.
+- `revalidateTag(tag)` now requires a cache-life `profile` argument. Rather than
+  guess the profile semantics, the revalidate route derives the slug from the
+  `tenant-<slug>` tag and calls `revalidatePath('/' + slug)`, which needs no
+  profile and revalidates exactly the tenant's page.
+
+### The public site and custom domains resolve fail-closed
+
+Both the public site read and custom-domain resolution reach RLS-protected data
+without a tenant context, so both go through narrow `SECURITY DEFINER` functions
+(`app_public_tenant`, `app_slug_by_domain`) — the same pattern as login — and
+the `/api/public/*` routes are exempt from the bearer check. Live-data sections
+(services, team) are resolved at read time from admin tables, so the public site
+is never stale relative to the catalogue.
+
+### Deferred
+
+- **Automated Vercel Domains API** (programmatic domain add/verify) — the
+  host→slug resolution and proxy are built; provisioning the domain on Vercel is
+  a Pro-tier API call wired when a client brings a domain.
+- **Section media/image uploads** (gallery, hero photo) — sections take image
+  URLs today; a GCS upload path lands with object storage.

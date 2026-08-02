@@ -4,5 +4,6 @@ export * from './bill.js';
 export * from './commission.js';
 export * from './csv.js';
 export * from './escpos.js';
+export * from './theme.js';
 export * from './sync.js';
 export * from './permissions.js';

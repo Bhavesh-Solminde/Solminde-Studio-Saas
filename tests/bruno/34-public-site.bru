@@ -1,0 +1,31 @@
+meta {
+  name: Public Site Read
+  type: http
+  seq: 34
+}
+
+get {
+  url: {{baseUrl}}/api/public/{{tenantSlug}}/site
+  body: none
+  auth: none
+}
+
+assert {
+  res.status: eq 200
+}
+
+tests {
+  test("the public site returns the published hero, theme and live data", function () {
+    expect(res.body.settings.theme.primary).to.equal("#f2e14a");
+    const hero = res.body.sections.find((s) => s.type === "hero");
+    expect(hero).to.not.equal(undefined);
+    expect(hero.data.headline).to.equal(bru.getEnvVar("heroHeadline"));
+    // Live-data sections draw current admin data.
+    expect(res.body.live.services).to.be.an("array");
+    expect(res.body.live.services.length).to.be.greaterThan(0);
+  });
+
+  test("no login was needed for the public site", function () {
+    expect(res.body.salon.slug).to.equal(bru.getEnvVar("tenantSlug"));
+  });
+}

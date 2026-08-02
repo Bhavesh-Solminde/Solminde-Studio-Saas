@@ -78,9 +78,29 @@ AS $$
   LIMIT 1;
 $$;
 
+-- A per-tenant custom domain maps to a salon's slug. Next.js middleware resolves
+-- an incoming host to the slug and rewrites to that salon's site. Same
+-- fail-closed reasoning: site_settings is RLS-protected, so this narrow definer
+-- function is how the mapping is read without a tenant context.
+CREATE OR REPLACE FUNCTION app_slug_by_domain(p_domain text)
+RETURNS TABLE (slug text)
+LANGUAGE sql
+SECURITY DEFINER
+STABLE
+SET search_path = public
+AS $$
+  SELECT t.slug
+  FROM site_settings s
+  JOIN tenants t ON t.id = s."tenantId"
+  WHERE s.domain = p_domain
+  LIMIT 1;
+$$;
+
 REVOKE ALL ON FUNCTION app_login_lookup(text, text) FROM PUBLIC;
 REVOKE ALL ON FUNCTION app_refresh_lookup(text) FROM PUBLIC;
 REVOKE ALL ON FUNCTION app_public_tenant(text) FROM PUBLIC;
+REVOKE ALL ON FUNCTION app_slug_by_domain(text) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION app_login_lookup(text, text) TO salon_app;
 GRANT EXECUTE ON FUNCTION app_refresh_lookup(text) TO salon_app;
 GRANT EXECUTE ON FUNCTION app_public_tenant(text) TO salon_app;
+GRANT EXECUTE ON FUNCTION app_slug_by_domain(text) TO salon_app;

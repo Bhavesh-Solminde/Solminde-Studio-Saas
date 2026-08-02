@@ -1,0 +1,40 @@
+meta {
+  name: Site Theme (contrast enforced)
+  type: http
+  seq: 31
+}
+
+put {
+  url: {{baseUrl}}/api/site/settings
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{accessToken}}
+}
+
+body:json {
+  {
+    "theme": { "primary": "#f2e14a", "sidebar": "light" },
+    "seo": { "title": "Acme Salon" }
+  }
+}
+
+assert {
+  res.status: eq 200
+}
+
+tests {
+  test("saving a pale accent auto-flips the on-accent text to black for contrast", function () {
+    expect(res.body.theme.primary).to.equal("#f2e14a");
+    // Pale yellow would be unreadable with white text; the server enforces AA.
+    expect(res.body.theme.onPrimary).to.equal("#000000");
+  });
+}
+
+docs {
+  Contrast is enforced server-side, not in the UI: the owner picks one accent and
+  the readable on-accent text colour is computed and stored. A salon cannot end
+  up with a pale sidebar and white text nobody can read.
+}

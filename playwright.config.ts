@@ -40,5 +40,12 @@ export default defineConfig({
       reuseExistingServer: !process.env.CI,
       timeout: 120_000,
     },
+    {
+      // The public Next.js site, for the Stage 6 gate (publish → site updates).
+      command: 'pnpm dev:web',
+      url: 'http://localhost:3000',
+      reuseExistingServer: !process.env.CI,
+      timeout: 180_000,
+    },
   ],
 });

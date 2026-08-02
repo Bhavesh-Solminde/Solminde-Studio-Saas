@@ -1,0 +1,55 @@
+meta {
+  name: Site Sections + Publish
+  type: http
+  seq: 32
+}
+
+put {
+  url: {{baseUrl}}/api/site/sections
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{accessToken}}
+}
+
+script:pre-request {
+  function uuidv4() {
+    return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, function (c) {
+      const r = (Math.random() * 16) | 0;
+      const v = c === "x" ? r : (r & 0x3) | 0x8;
+      return v.toString(16);
+    });
+  }
+  bru.setEnvVar("heroId", uuidv4());
+  bru.setEnvVar("servicesId", uuidv4());
+  bru.setEnvVar("heroHeadline", "Bruno Hero " + Date.now());
+}
+
+body:json {
+  {
+    "sections": [
+      { "id": "{{heroId}}", "type": "hero", "position": 0, "enabled": true, "data": { "headline": "{{heroHeadline}}", "cta": "Book now" } },
+      { "id": "{{servicesId}}", "type": "services", "position": 1, "enabled": true, "data": { "heading": "Services" } }
+    ]
+  }
+}
+
+assert {
+  res.status: eq 200
+}
+
+tests {
+  test("sections save as a draft — not yet published", function () {
+    const hero = res.body.find((s) => s.id === bru.getEnvVar("heroId"));
+    expect(hero).to.not.equal(undefined);
+    expect(hero.publishedAt).to.equal(null);
+  });
+}
+
+docs {
+  Editing sections changes the draft. The draft/publish split means the public
+  site does not see them until Publish sets publishedAt (seq 33) — a half-edited
+  hero is never live.
+}

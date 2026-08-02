@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { formatPaise } from '@salon/shared';
-import { API, authHeaders } from './sync';
+import { apiJson as api } from './api';
 import { s } from './styles';
 
 interface Feature {
@@ -12,12 +12,6 @@ interface ExceptionRow {
   type: string;
   detail: unknown;
   createdAt: string;
-}
-
-async function api<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${API}/api${path}`, { ...init, headers: authHeaders() });
-  if (!res.ok) throw new Error(await res.text());
-  return res.json() as Promise<T>;
 }
 
 /**

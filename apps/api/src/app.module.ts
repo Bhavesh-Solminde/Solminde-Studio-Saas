@@ -44,6 +44,10 @@ import { ReportsController } from './reports/reports.controller.js';
 import { OpsController } from './ops/ops.controller.js';
 import { ImportService } from './admin/import.service.js';
 import { AdminController } from './admin/admin.controller.js';
+import { PublicTenantService } from './public/public-tenant.service.js';
+import { SiteRevalidator } from './site/site-revalidator.js';
+import { SiteController } from './site/site.controller.js';
+import { PublicSiteController } from './site/public-site.controller.js';
 
 @Controller()
 class HealthController {
@@ -57,7 +61,7 @@ class HealthController {
   @Get('health')
   async health() {
     await this.prisma.$queryRaw`SELECT 1`;
-    return { ok: true, stage: 5 };
+    return { ok: true, stage: 6 };
   }
 }
 
@@ -92,6 +96,8 @@ const OP_HANDLERS = [
     ReportsController,
     OpsController,
     AdminController,
+    SiteController,
+    PublicSiteController,
   ],
   providers: [
     PrismaService,
@@ -108,6 +114,8 @@ const OP_HANDLERS = [
     MessagingService,
     ReportsService,
     ImportService,
+    PublicTenantService,
+    SiteRevalidator,
     { provide: MESSAGING_PROVIDER, useClass: StubMessagingProvider },
     { provide: PAYMENT_PROVIDER, useClass: StubPaymentProvider },
     SyncService,

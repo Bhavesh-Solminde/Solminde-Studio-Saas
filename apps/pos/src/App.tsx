@@ -6,9 +6,10 @@ import { BillingView } from './BillingView';
 import { AppointmentsView } from './AppointmentsView';
 import { ReportsView } from './ReportsView';
 import { AdminView } from './AdminView';
+import { SiteView } from './SiteView';
 import { s } from './styles';
 
-type Tab = 'billing' | 'appointments' | 'customers' | 'reports' | 'admin';
+type Tab = 'billing' | 'appointments' | 'customers' | 'reports' | 'admin' | 'site';
 
 /**
  * The POS shell: a permanent connection badge, a pending-sync counter, and two
@@ -86,6 +87,12 @@ export function App() {
           Reports
         </button>
         <button
+          style={{ ...s.tab, ...(tab === 'site' ? s.tabActive : {}) }}
+          onClick={() => setTab('site')}
+        >
+          Site
+        </button>
+        <button
           style={{ ...s.tab, ...(tab === 'admin' ? s.tabActive : {}) }}
           onClick={() => setTab('admin')}
         >
@@ -98,6 +105,7 @@ export function App() {
         {tab === 'appointments' && <AppointmentsView />}
         {tab === 'customers' && <CustomersView />}
         {tab === 'reports' && <ReportsView />}
+        {tab === 'site' && <SiteView />}
         {tab === 'admin' && <AdminView />}
       </main>
     </div>

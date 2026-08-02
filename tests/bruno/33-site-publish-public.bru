@@ -1,0 +1,31 @@
+meta {
+  name: Site Publish + Public Read
+  type: http
+  seq: 33
+}
+
+post {
+  url: {{baseUrl}}/api/site/publish
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{accessToken}}
+}
+
+assert {
+  res.status: eq 201
+}
+
+tests {
+  test("publish succeeds", function () {
+    expect(res.body.ok).to.equal(true);
+  });
+}
+
+docs {
+  Publish marks every section live and revalidates the public site's cache. The
+  public read below runs unauthenticated, resolved by slug, and returns only
+  published sections plus live admin data (services, team).
+}

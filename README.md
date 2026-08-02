@@ -58,9 +58,9 @@ the build if this ever regresses.
 ## Testing
 
 ```bash
-pnpm test:unit   # node:test — GST/bill maths, wallet settlement, commissions, CSV
-pnpm test:api    # Bruno — auth, isolation, billing, commissions, booking, reports
-pnpm test:e2e    # Playwright — the Stage 1–5 gates
+pnpm test:unit   # node:test — GST/bill maths, wallet, commissions, CSV, theme contrast
+pnpm test:api    # Bruno — auth, isolation, billing, booking, reports, site CMS
+pnpm test:e2e    # Playwright — the Stage 1–6 gates (needs the web + api dev servers)
 pnpm test        # all three
 ```
 
@@ -148,8 +148,17 @@ packages/
   to the POS catalogue on sync and is billed — a salon set up from zero to first
   bill without a developer touching the database.
 
-- **Stage 6 — Presentation layer.** Next (theming, design-research pass, section
-  CMS, one site template, custom domains).
+- **Stage 6 — Presentation layer.** Complete and verified against Supabase.
+  Per-tenant theming with server-enforced WCAG contrast (accent auto-flips its
+  text), a design-research pass (Playwright capture of 15 reference sites + a
+  written pattern report; screenshots gitignored), the section-based landing CMS
+  (nine section types, draft→publish via `publishedAt` + ISR, live-data sections
+  pulling services/team from admin data), one Next.js site template built from
+  the pattern report, and per-tenant custom-domain resolution (host→slug in a
+  Next `proxy`, backed by a `SECURITY DEFINER` lookup).
+
+  **Gate passed:** an owner changes their accent colour, edits their hero and
+  hits publish — and the live public site updates.
 
 ## Licence
 
