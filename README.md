@@ -7,8 +7,8 @@ One codebase, sold as a bespoke install per salon, each with its own public webs
 does not.
 
 See [SALON_PLATFORM_BUILD_SPEC.md](SALON_PLATFORM_BUILD_SPEC.md) for the architecture,
-[PRODUCT.md](PRODUCT.md) for product truth, and [DESIGN.md](DESIGN.md) for the visual
-system.
+[PRODUCT.md](PRODUCT.md) for product truth, [DESIGN.md](DESIGN.md) for the visual
+system, and [RUNBOOK.md](RUNBOOK.md) for operations.
 
 ## Stack
 
@@ -159,6 +159,13 @@ packages/
 
   **Gate passed:** an owner changes their accent colour, edits their hero and
   hits publish — and the live public site updates.
+
+- **Stage 7 — Pilot hardening.** In progress. No new features: the operations
+  [RUNBOOK.md](RUNBOOK.md) is written (backup/restore, onboarding a salon,
+  rotating an invoice lease, deploy, keep-warm/monitoring, the pilot
+  parallel-run + cutover checklist, and an incident quick reference). The
+  remaining work — migrating the live pilot client and running both systems in
+  parallel — happens against real client data and production infrastructure.
 
 ## Licence
 
