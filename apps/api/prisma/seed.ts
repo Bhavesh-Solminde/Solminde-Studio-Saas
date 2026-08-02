@@ -52,6 +52,9 @@ async function main() {
       name: 'Acme Salon',
       phone: '9000000001',
       password: 'frontdesk-dev-password',
+      // Fixed catalogue ids so the billing tests can reference them directly.
+      serviceId: 'aaaaaaaa-0000-4000-8000-000000000001',
+      productId: 'bbbbbbbb-0000-4000-8000-000000000001',
     },
     {
       id: '22222222-2222-4222-8222-222222222222',
@@ -59,6 +62,8 @@ async function main() {
       name: 'Rival Salon',
       phone: '9000000002',
       password: 'rival-dev-password',
+      serviceId: 'aaaaaaaa-0000-4000-8000-000000000002',
+      productId: 'bbbbbbbb-0000-4000-8000-000000000002',
     },
   ];
 
@@ -109,6 +114,56 @@ async function main() {
           where: { tenantId_key: { tenantId: spec.id, key } },
           create: { tenantId: spec.id, key, enabled: true, source: 'plan' },
           update: { enabled: true },
+        });
+      }
+
+      // A minimal catalogue so billing has something to sell. Prices are
+      // integer paise (₹500 haircut, ₹300 shampoo), tax 18% GST.
+      await tx.service.upsert({
+        where: { id: spec.serviceId },
+        create: {
+          id: spec.serviceId,
+          tenantId: spec.id,
+          name: 'Haircut',
+          durationMin: 30,
+          price: 50000,
+          taxRate: 18,
+        },
+        update: { price: 50000, taxRate: 18 },
+      });
+
+      await tx.product.upsert({
+        where: { id: spec.productId },
+        create: {
+          id: spec.productId,
+          tenantId: spec.id,
+          name: 'Shampoo',
+          sku: 'SHMP-250',
+          cost: 15000,
+          price: 30000,
+          taxRate: 18,
+          reorderLevel: 5,
+        },
+        update: { price: 30000, taxRate: 18 },
+      });
+
+      // Opening stock as a ledger entry, never a stored count. Idempotent on
+      // re-seed: only laid down when the product has no stock history yet.
+      const stock = await tx.stockLedger.aggregate({
+        _sum: { delta: true },
+        where: { productId: spec.productId },
+      });
+      if ((stock._sum.delta ?? 0) === 0) {
+        await tx.stockLedger.create({
+          data: {
+            id: randomUUID(),
+            tenantId: spec.id,
+            productId: spec.productId,
+            delta: 50,
+            reason: 'opening',
+            terminalId: '00000000-0000-4000-8000-0000000000ff',
+            opId: randomUUID(),
+          },
         });
       }
     });

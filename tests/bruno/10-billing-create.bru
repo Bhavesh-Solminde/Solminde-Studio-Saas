@@ -1,0 +1,65 @@
+meta {
+  name: Billing Create
+  type: http
+  seq: 10
+}
+
+post {
+  url: {{baseUrl}}/api/sync/push
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{accessToken}}
+}
+
+body:json {
+  {
+    "ops": [
+      {
+        "opId": "{{billOpId}}",
+        "tenantId": "{{tenantId}}",
+        "terminalId": "00000000-0000-4000-8000-0000000000b0",
+        "localSeq": 2,
+        "type": "bill.create",
+        "payload": {
+          "id": "{{billId}}",
+          "invoiceNo": "{{invoiceNo}}",
+          "series": "BRUNO",
+          "customerId": "{{customerId}}",
+          "createdAt": 1754130000000,
+          "lines": [
+            { "type": "service", "refId": "aaaaaaaa-0000-4000-8000-000000000001", "name": "Haircut", "quantity": 1, "unitPrice": 50000, "taxRate": 18 },
+            { "type": "product", "refId": "bbbbbbbb-0000-4000-8000-000000000001", "name": "Shampoo", "quantity": 1, "unitPrice": 30000, "taxRate": 18 }
+          ],
+          "payments": [
+            { "method": "wallet", "amount": 20000 },
+            { "method": "cash", "amount": 74400 }
+          ]
+        },
+        "status": "pending",
+        "attempts": 0,
+        "createdAt": 1
+      }
+    ]
+  }
+}
+
+assert {
+  res.status: eq 201
+}
+
+tests {
+  test("bill is acked on first delivery", function () {
+    expect(res.body.outcomes[0].status).to.equal("acked");
+    expect(res.body.outcomes[0].duplicate).to.equal(false);
+  });
+
+  test("GST maths: 800 + 18% = 944", function () {
+    // The server recomputes the total from the same shared function the device
+    // used. If this ever disagrees, a printed bill would disagree with the
+    // ledger — the exact 'money is wrong' failure the system forbids.
+    expect(res.body.outcomes[0].result.total).to.equal(94400);
+  });
+}

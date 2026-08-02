@@ -1,12 +1,14 @@
-import { db, pendingOpCount } from './db';
-import { createCustomer, syncNow } from './sync';
+import { db, getLocalBalance, pendingOpCount } from './db';
+import { API, authHeaders, createCustomer, currentSession, getTerminalId, syncNow } from './sync';
+import { createBill, ensureLease, topupWallet, voidBill, type CreateBillInput } from './billing';
 
 /**
  * Test bridge for the Playwright suite.
  *
  * Exposed only when the build is not production, so it cannot ship to a salon.
- * The E2E tests drive the real outbox and sync paths through this rather than
- * reimplementing them, so a passing test proves the actual code works.
+ * The E2E tests drive the real outbox, billing and sync paths through this
+ * rather than reimplementing them, so a passing test proves the actual code
+ * works.
  */
 export interface SalonTestBridge {
   createCustomerOffline(args: {
@@ -18,6 +20,24 @@ export interface SalonTestBridge {
   findCustomer(id: string): Promise<unknown>;
   countCustomersByPhone(phone: string): Promise<number>;
   replayOp(args: { opId: string; customerId: string; phone: string }): Promise<unknown>;
+
+  // --- Stage 2: billing ---
+  ensureLease(): Promise<void>;
+  topupWallet(customerId: string, amount: number): Promise<void>;
+  createBillOffline(args: {
+    opId: string;
+    billId: string;
+    input: CreateBillInput;
+  }): Promise<{ billId: string; invoiceNo: string; total: number }>;
+  voidBill(billId: string, reason: string): Promise<void>;
+  localWalletBalance(customerId: string): Promise<number>;
+  localStockOnHand(productId: string): Promise<number>;
+  serverWalletBalance(customerId: string): Promise<number>;
+  serverStockOnHand(productId: string): Promise<number>;
+  findBill(id: string): Promise<unknown>;
+  countBillsByInvoice(invoiceNo: string): Promise<number>;
+  /** Push arbitrary ops straight to the server — used to replay for idempotency. */
+  pushOps(ops: unknown[]): Promise<{ outcomes: { status: string; duplicate?: boolean }[] }>;
 }
 
 declare global {
@@ -40,31 +60,65 @@ export function installTestBridge(): void {
     /** Re-send an already-acked op verbatim, exactly as a retry storm would. */
     async replayOp({ opId, customerId, phone }) {
       const session = JSON.parse(localStorage.getItem('localSession') ?? '{}');
-      const res = await fetch(
-        `${import.meta.env.VITE_API_URL ?? 'http://localhost:3001'}/api/sync/push`,
-        {
-          method: 'POST',
-          headers: {
-            'content-type': 'application/json',
-            Authorization: `Bearer ${localStorage.getItem('accessToken') ?? ''}`,
-          },
-          body: JSON.stringify({
-            ops: [
-              {
-                opId,
-                tenantId: session.tenantId,
-                terminalId: localStorage.getItem('terminalId'),
-                localSeq: 1,
-                type: 'customer.create',
-                payload: { id: customerId, name: 'Offline Walk-in', phone },
-                status: 'pending',
-                attempts: 0,
-                createdAt: Date.now(),
-              },
-            ],
-          }),
-        },
-      );
+      const res = await fetch(`${API}/api/sync/push`, {
+        method: 'POST',
+        headers: authHeaders(),
+        body: JSON.stringify({
+          ops: [
+            {
+              opId,
+              tenantId: session.tenantId,
+              terminalId: getTerminalId(),
+              localSeq: 1,
+              type: 'customer.create',
+              payload: { id: customerId, name: 'Offline Walk-in', phone },
+              status: 'pending',
+              attempts: 0,
+              createdAt: Date.now(),
+            },
+          ],
+        }),
+      });
+      return res.json();
+    },
+
+    ensureLease: () => ensureLease(),
+    topupWallet: (customerId, amount) => topupWallet(customerId, amount),
+    createBillOffline: async ({ opId, billId, input }) => {
+      const { billId: id, invoiceNo, total } = await createBill(input, opId, billId);
+      return { billId: id, invoiceNo, total };
+    },
+    voidBill: (billId, reason) => voidBill(billId, reason),
+    localWalletBalance: (customerId) => getLocalBalance('wallet', customerId),
+    localStockOnHand: (productId) => getLocalBalance('stock', productId),
+    async serverWalletBalance(customerId) {
+      const res = await fetch(`${API}/api/billing/wallet/${customerId}`, { headers: authHeaders() });
+      const body = (await res.json()) as { balance: number };
+      return body.balance;
+    },
+    async serverStockOnHand(productId) {
+      const res = await fetch(`${API}/api/billing/stock/${productId}`, { headers: authHeaders() });
+      const body = (await res.json()) as { onHand: number };
+      return body.onHand;
+    },
+    findBill: (id) => db.bills.get(id),
+    countBillsByInvoice: (invoiceNo) => db.bills.where('invoiceNo').equals(invoiceNo).count(),
+    async pushOps(ops) {
+      const session = currentSession();
+      const stamped = (ops as Record<string, unknown>[]).map((op) => ({
+        tenantId: session?.tenantId,
+        terminalId: getTerminalId(),
+        localSeq: 1,
+        status: 'pending',
+        attempts: 0,
+        createdAt: Date.now(),
+        ...op,
+      }));
+      const res = await fetch(`${API}/api/sync/push`, {
+        method: 'POST',
+        headers: authHeaders(),
+        body: JSON.stringify({ ops: stamped }),
+      });
       return res.json();
     },
   };

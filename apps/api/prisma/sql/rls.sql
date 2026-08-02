@@ -37,7 +37,7 @@ DECLARE
     'service_categories', 'services', 'products', 'packages', 'package_items',
     'memberships',
     'customers', 'staff', 'attendance', 'resources', 'appointments',
-    'bills', 'bill_lines', 'payments', 'expenses', 'invoice_leases',
+    'bills', 'bill_lines', 'payments', 'expenses', 'invoice_leases', 'day_closes',
     'wallet_ledger', 'stock_ledger', 'session_ledger', 'customer_packages',
     'processed_ops', 'tombstones', 'sync_exceptions',
     'site_settings', 'site_sections', 'site_media',

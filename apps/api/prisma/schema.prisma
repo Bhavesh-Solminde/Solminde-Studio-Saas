@@ -445,6 +445,36 @@ model Expense {
   @@map("expenses")
 }
 
+/// One cash reconciliation ("day close") per terminal per business day. The
+/// counted figures are a point-in-time SNAPSHOT — a physical cash count at
+/// close — not a running total, so this table breaks no ledger rule. Expected
+/// cash is derived from the day's cash payments; variance is the count minus
+/// that expectation, and a persistent non-zero variance is what the owner
+/// investigates.
+model DayClose {
+  id           String   @id @default(uuid()) @db.Uuid
+  tenantId     String   @db.Uuid
+  locationId   String?  @db.Uuid
+  terminalId   String   @db.Uuid
+  businessDate DateTime @db.Date
+  /// Integer paise expected in the drawer, from SUM of the day's cash payments.
+  expectedCash Int
+  /// Integer paise physically counted at close.
+  countedCash  Int
+  /// countedCash - expectedCash. Positive is a surplus, negative is short.
+  variance     Int
+  note         String?
+  closedBy     String?  @db.Uuid
+  /// Idempotency key of the op that recorded this close. Unique per tenant.
+  opId         String   @db.Uuid
+  createdAt    DateTime @default(now())
+
+  @@unique([tenantId, opId])
+  @@unique([tenantId, terminalId, businessDate])
+  @@index([tenantId, businessDate])
+  @@map("day_closes")
+}
+
 /// Pre-leased invoice number blocks, one per terminal per series per financial
 /// year. The number printed on a receipt offline must be final; it cannot be
 /// assigned later on sync. Re-leased automatically at 80% consumed.

@@ -27,8 +27,12 @@ export function rupeesToPaise(rupees: string | number): Paise {
   return paise(sign === '-' ? -total : total);
 }
 
-/** Format integer paise for display. Not for arithmetic. */
-export function formatPaise(value: Paise): string {
+/**
+ * Format integer paise for display. Not for arithmetic — so it takes a plain
+ * `number`, letting UI code that already holds paise as numbers format without
+ * ceremony while the branded `Paise` type still guards every arithmetic site.
+ */
+export function formatPaise(value: number): string {
   const negative = value < 0;
   const absolute = Math.abs(value);
   const whole = Math.floor(absolute / 100);

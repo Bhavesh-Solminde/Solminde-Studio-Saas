@@ -1,0 +1,51 @@
+meta {
+  name: Billing Void
+  type: http
+  seq: 13
+}
+
+post {
+  url: {{baseUrl}}/api/sync/push
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{accessToken}}
+}
+
+body:json {
+  {
+    "ops": [
+      {
+        "opId": "{{voidOpId}}",
+        "tenantId": "{{tenantId}}",
+        "terminalId": "00000000-0000-4000-8000-0000000000b0",
+        "localSeq": 3,
+        "type": "bill.void",
+        "payload": { "billId": "{{billId}}", "reason": "bruno test void" },
+        "status": "pending",
+        "attempts": 0,
+        "createdAt": 1
+      }
+    ]
+  }
+}
+
+assert {
+  res.status: eq 201
+}
+
+tests {
+  test("void is acked and marks the bill void", function () {
+    expect(res.body.outcomes[0].status).to.equal("acked");
+    expect(res.body.outcomes[0].result.status).to.equal("void");
+  });
+}
+
+docs {
+  A void is a reversing entry, never a mutation. The original bill row stays as
+  printed with status flipped to 'void', and every ledger entry it created gets
+  a mirror entry that cancels it. Seq 14 proves the wallet redemption was
+  reversed by checking the balance is restored.
+}

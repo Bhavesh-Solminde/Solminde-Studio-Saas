@@ -58,9 +58,10 @@ the build if this ever regresses.
 ## Testing
 
 ```bash
-pnpm test:api    # Bruno — auth, sync, idempotency, tenant isolation
-pnpm test:e2e    # Playwright — the Stage 1 offline gate
-pnpm test        # both
+pnpm test:unit   # node:test — GST/bill maths, wallet settlement, invoice numbering
+pnpm test:api    # Bruno — auth, sync, idempotency, tenant isolation, billing, void
+pnpm test:e2e    # Playwright — the Stage 1 and Stage 2 offline gates
+pnpm test        # all three
 ```
 
 ## Two rules that govern everything
@@ -98,7 +99,20 @@ packages/
   **Gate passed:** a customer created with WiFi off on device A appears on device B after
   reconnect, and the same `op_id` delivered twice produces no duplicate row.
 
-- **Stage 2 — Offline billing.** Next. The revenue surface.
+- **Stage 2 — Offline billing.** Complete and verified against Supabase. Bills
+  and voids as `OpHandler`s, GST computed once in `packages/shared` and shared by
+  POS and API, `StockLedger` and `WalletLedger` wired to billing, split payments
+  with advances and dues on the wallet ledger, refunds and cancellation as
+  reversing entries, per-terminal invoice leasing (advisory-locked, auto re-lease
+  at 80%), ESC/POS thermal printing over Web Serial with an HTML fallback, and
+  per-terminal day-close cash reconciliation.
+
+  **Gate passed:** with the network offline, a bill redeems wallet, deducts
+  stock and prints a final invoice number; on reconnect everything syncs, the
+  ledgers balance exactly, and a replayed op creates no duplicate and no double
+  charge.
+
+- **Stage 3 — Commissions and packages.** Next.
 
 ## Licence
 

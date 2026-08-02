@@ -99,7 +99,10 @@ export class SyncService {
         }
       }
 
-      const result = await handler.apply(tx, ctx, parsed.data);
+      const result = await handler.apply(tx, ctx, parsed.data, {
+        opId: op.opId,
+        terminalId: op.terminalId,
+      });
 
       await tx.processedOp.create({
         data: { opId: op.opId, tenantId: ctx.tenantId, result: result as object },

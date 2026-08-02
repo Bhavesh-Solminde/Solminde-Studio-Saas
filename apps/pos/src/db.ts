@@ -1,5 +1,5 @@
 import Dexie, { type EntityTable } from 'dexie';
-import type { OutboxOp } from '@salon/shared';
+import type { OutboxOp, PaymentMethod } from '@salon/shared';
 
 /**
  * Local database. Every user write lands here first and the UI reads from here
@@ -17,6 +17,81 @@ export interface LocalCustomer {
   updatedAt: number;
   /** True until the server has acked the op that created or changed this row. */
   pending: boolean;
+}
+
+/** Catalogue reference data, pulled server-authoritative. Read-only offline. */
+export interface LocalService {
+  id: string;
+  tenantId: string;
+  name: string;
+  durationMin: number;
+  /** Integer paise. */
+  price: number;
+  taxRate: number;
+  updatedAt: number;
+}
+
+export interface LocalProduct {
+  id: string;
+  tenantId: string;
+  name: string;
+  sku?: string | null;
+  /** Integer paise. */
+  price: number;
+  taxRate: number;
+  reorderLevel: number;
+  updatedAt: number;
+}
+
+export interface LocalBillLine {
+  type: 'service' | 'product' | 'package' | 'membership';
+  refId?: string;
+  name: string;
+  quantity: number;
+  unitPrice: number;
+  discount?: number;
+  taxRate: number;
+  staffId?: string;
+}
+
+export interface LocalPayment {
+  method: PaymentMethod;
+  amount: number;
+  reference?: string;
+}
+
+/** A bill written locally the instant Save is tapped, printed, then synced. */
+export interface LocalBill {
+  id: string;
+  tenantId: string;
+  terminalId: string;
+  invoiceNo: string;
+  series: string;
+  customerId?: string | null;
+  lines: LocalBillLine[];
+  payments: LocalPayment[];
+  subtotal: number;
+  discount: number;
+  tax: number;
+  total: number;
+  status: 'final' | 'void';
+  createdAt: number;
+  pending: boolean;
+}
+
+/**
+ * The terminal's current invoice-number block, leased from the server while
+ * online and consumed locally offline. `nextNumber` advances on every bill; the
+ * printed number is therefore final the moment it prints, never assigned later.
+ */
+export interface LocalLease {
+  key: string; // `${series}:${financialYear}:${blockStart}` — one row per block
+  series: string;
+  financialYear: string;
+  terminalCode: string;
+  blockStart: number;
+  blockEnd: number;
+  nextNumber: number;
 }
 
 /**
@@ -42,6 +117,10 @@ export interface SyncMeta {
 export const db = new Dexie('salon-pos') as Dexie & {
   outbox: EntityTable<OutboxOp, 'opId'>;
   customers: EntityTable<LocalCustomer, 'id'>;
+  services: EntityTable<LocalService, 'id'>;
+  products: EntityTable<LocalProduct, 'id'>;
+  bills: EntityTable<LocalBill, 'id'>;
+  leases: EntityTable<LocalLease, 'key'>;
   localBalances: EntityTable<LocalBalance, 'key'>;
   syncMeta: EntityTable<SyncMeta, 'key'>;
 };
@@ -53,6 +132,14 @@ db.version(1).stores({
   syncMeta: 'key',
 });
 
+// Stage 2 adds the revenue surface: catalogue, bills and invoice leases.
+db.version(2).stores({
+  services: 'id, name, updatedAt',
+  products: 'id, name, updatedAt',
+  bills: 'id, invoiceNo, customerId, status, createdAt',
+  leases: 'key',
+});
+
 export async function pendingOpCount(): Promise<number> {
   return db.outbox.where('status').anyOf('pending', 'sent').count();
 }
@@ -61,6 +148,40 @@ export async function pendingOpCount(): Promise<number> {
 export async function nextLocalSeq(): Promise<number> {
   const last = await db.outbox.orderBy('localSeq').last();
   return (last?.localSeq ?? 0) + 1;
+}
+
+export function balanceKey(ledgerType: LocalBalance['ledgerType'], ownerId: string): string {
+  return `${ledgerType}:${ownerId}`;
+}
+
+export async function getLocalBalance(
+  ledgerType: LocalBalance['ledgerType'],
+  ownerId: string,
+): Promise<number> {
+  return (await db.localBalances.get(balanceKey(ledgerType, ownerId)))?.balance ?? 0;
+}
+
+/**
+ * Adjust the cached balance by a signed delta. Pure addition, exactly like the
+ * ledger it mirrors — so it commutes and cannot drift from the server's SUM
+ * except transiently, and it is rebuildable from the ledger at any time.
+ */
+export async function adjustLocalBalance(
+  ledgerType: LocalBalance['ledgerType'],
+  ownerId: string,
+  delta: number,
+): Promise<void> {
+  const key = balanceKey(ledgerType, ownerId);
+  await db.transaction('rw', db.localBalances, async () => {
+    const current = (await db.localBalances.get(key))?.balance ?? 0;
+    await db.localBalances.put({
+      key,
+      ledgerType,
+      ownerId,
+      balance: current + delta,
+      updatedAt: Date.now(),
+    });
+  });
 }
 
 export async function getCursor(): Promise<string | null> {
