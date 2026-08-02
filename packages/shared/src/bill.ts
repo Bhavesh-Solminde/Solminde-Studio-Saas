@@ -19,6 +19,12 @@ export interface BillLineInput {
   readonly type: BillLineType;
   /** Catalogue id (serviceId/productId/packageId). Absent for ad-hoc lines. */
   readonly refId?: string;
+  /**
+   * The service delivered, when this line redeems a package session — the
+   * session ledger records which service was drawn down. On a plain service
+   * line `refId` already is the service, so this is left unset there.
+   */
+  readonly serviceId?: string;
   readonly name: string;
   readonly quantity: number;
   /** Per-unit price in paise. */

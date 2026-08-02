@@ -112,3 +112,79 @@ to verify the stage.
 - **Web Bluetooth printing is not implemented.** Web Serial and an HTML fallback
   are; BT printers fall through to HTML. Per spec, the exact pilot printer must
   be acquired before finishing the transport, so this waits for hardware.
+
+---
+
+## Stage 3 — Commissions and packages
+
+### Commission is two layers: a per-line snapshot and a read-time rollup
+
+**Decision.** Per-line commission (flat percentage, service-vs-retail split) is
+computed at bill time and snapshotted onto `bill_lines.commissionAmount`. Slab
+and target-bonus amounts, which depend on a whole period's revenue, are NOT
+snapshotted — they are derived at read time in the commission summary.
+
+**Why.** Two forces pull in opposite directions. The spec says a stylist's
+earned commission is "derived from bill lines at read time," but it also says
+`bill_lines.commissionAmount` is "snapshotted so a later rule change cannot
+retroactively alter what a stylist already earned." Both are right, for
+different parts of the calculation: a flat rate is knowable per line and must be
+frozen, but a slab rate is unknowable until the period is totalled and can only
+be computed on read. Splitting the calculation is what satisfies both.
+
+**Consequence.** For a flat rule the summary's base is the *sum of snapshots*
+(authoritative). For a slab rule it is *recomputed* from period net revenue.
+Mixing the two in one summary means the code branches on `rule.kind`, which is
+the price of getting both invariants right.
+
+### `view_own` vs `view_all` is an OR the permission guard cannot express
+
+**Blocker.** A commission summary must be reachable by a stylist with
+`commission.view_own` OR a manager with `commission.view_all`. The
+`@RequiresPermission` guard takes exactly one permission and ANDs it, so it
+cannot encode "either of these two." Requiring the weaker one would lock out a
+manager who holds only the stronger one, and vice versa.
+
+**Solution.** Gate the route on the feature (`@RequiresFeature('commissions')`)
+and resolve the two permissions inside the handler: reject if the user has
+neither, scope to the caller's own staff record if they have only `view_own`.
+The scoping is what enforces privacy — a view-own request never even computes
+another stylist's number, so it cannot leak. This keeps the general guard simple
+rather than teaching it about OR semantics for one route.
+
+### Commission is taken on the net, ex-GST value
+
+**Decision.** The commission base is a line's taxable value (unit price ×
+quantity − discount), not its GST-inclusive total. The salon does not pay a
+stylist commission on tax it is merely collecting on the government's behalf.
+Documented here because it is a business rule that is invisible in the code —
+`line.taxable` looks like an arbitrary field choice without this reason.
+
+### Package redemption failures are surfaced, not blocked
+
+**Decision.** Redeeming a package session that has run out (negative remaining)
+or belongs to an expired package is allowed through and recorded as a sync
+exception (`negative_sessions` / `expired_package`), never blocked at billing.
+
+**Why.** This is the same reasoning as an overdraft: an offline terminal cannot
+always know the true remaining count or the current date-vs-expiry, and stopping
+the front desk mid-bill is worse than letting a rare exception through for the
+owner to resolve. Consistency with the wallet/stock overdraft handling keeps one
+mental model for "the ledger went somewhere it shouldn't have."
+
+### Audit rows are written on the money op's own transaction
+
+**Decision.** `AuditService.record` writes on the same `tx` as the change it
+describes, inside the handler. A committed bill and its audit row are therefore
+atomic — there is no interleaving where one exists without the other, and a
+rolled-back op leaves no orphan audit entry.
+
+### Deferred
+
+- **Membership benefits beyond the wallet credit.** A membership currently only
+  posts its `walletCredit`; the `benefits` JSON (discounts, priority booking) is
+  not interpreted yet. Out of scope until a client actually sells one.
+- **Commission-rule resolution re-queries per line.** `resolveRule` does its own
+  lookups for each line rather than batching by distinct staff. Bills carry a
+  handful of lines, so this is not worth the caching complexity yet; revisit if
+  a bulk-import path ever recomputes commission over thousands of lines.

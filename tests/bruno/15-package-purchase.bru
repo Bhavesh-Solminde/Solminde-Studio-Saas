@@ -1,0 +1,66 @@
+meta {
+  name: Package Purchase
+  type: http
+  seq: 15
+}
+
+post {
+  url: {{baseUrl}}/api/sync/push
+  body: json
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{accessToken}}
+}
+
+script:pre-request {
+  function uuidv4() {
+    return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, function (c) {
+      const r = (Math.random() * 16) | 0;
+      const v = c === "x" ? r : (r & 0x3) | 0x8;
+      return v.toString(16);
+    });
+  }
+  bru.setEnvVar("packageOpId", uuidv4());
+  bru.setEnvVar("customerPackageId", uuidv4());
+}
+
+body:json {
+  {
+    "ops": [
+      {
+        "opId": "{{packageOpId}}",
+        "tenantId": "{{tenantId}}",
+        "terminalId": "00000000-0000-4000-8000-0000000000b0",
+        "localSeq": 1,
+        "type": "package.purchase",
+        "payload": {
+          "id": "{{customerPackageId}}",
+          "customerId": "{{customerId}}",
+          "packageId": "eeeeeeee-0000-4000-8000-000000000001"
+        },
+        "status": "pending",
+        "attempts": 0,
+        "createdAt": 1
+      }
+    ]
+  }
+}
+
+assert {
+  res.status: eq 201
+}
+
+tests {
+  test("package purchase grants five sessions on the session ledger", function () {
+    expect(res.body.outcomes[0].status).to.equal("acked");
+    expect(res.body.outcomes[0].result.granted).to.equal(5);
+  });
+}
+
+docs {
+  Prepaid sessions are credited to the session ledger — one entry per included
+  service — never stored as a count. Remaining sessions are SUM(delta), so this
+  grant and a later redemption commute across offline terminals.
+}

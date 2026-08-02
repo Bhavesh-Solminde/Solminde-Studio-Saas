@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { z } from 'zod';
 import {
   computeBill,
+  lineCommission,
   walletEffectsForBill,
   type BillLineInput,
   type FeatureKey,
@@ -12,10 +13,14 @@ import { OpHandler, type OpMeta, type OpResult } from '../sync/op-handler.js';
 import type { PrismaTx } from '../prisma.service.js';
 import type { TenantCtx } from '../tenant-context.js';
 import { LedgerService } from './ledger.service.js';
+import { CommissionService } from '../commissions/commission.service.js';
+import { AuditService } from '../audit/audit.service.js';
 
 const billLine = z.object({
   type: z.enum(['service', 'product', 'package', 'membership']),
   refId: z.uuid().nullish(),
+  // The service delivered when this line redeems a package session.
+  serviceId: z.uuid().nullish(),
   name: z.string().min(1).max(160),
   quantity: z.number().int().positive(),
   unitPrice: z.number().int().nonnegative(),
@@ -57,7 +62,11 @@ export class BillCreateHandler extends OpHandler<BillCreatePayload> {
   readonly requiredFeatures: readonly FeatureKey[] = ['billing'];
   readonly requiredPermissions: readonly Permission[] = ['bill.create'];
 
-  constructor(private readonly ledgers: LedgerService) {
+  constructor(
+    private readonly ledgers: LedgerService,
+    private readonly commissions: CommissionService,
+    private readonly audit: AuditService,
+  ) {
     super();
   }
 
@@ -103,23 +112,40 @@ export class BillCreateHandler extends OpHandler<BillCreatePayload> {
       },
     });
 
-    await tx.billLine.createMany({
-      data: computed.lines.map((line) => ({
-        id: crypto.randomUUID(),
-        tenantId: ctx.tenantId,
-        billId: payload.id,
-        type: line.type,
-        refId: line.refId ?? null,
-        name: line.name,
-        quantity: line.quantity,
-        unitPrice: line.unitPrice,
-        discount: line.discount ?? 0,
-        taxRate: line.taxRate,
-        staffId: line.staffId ?? null,
-        // Commission is snapshotted at bill time in Stage 3; zero for now.
-        commissionAmount: 0,
-      })),
-    });
+    // Snapshot each line's commission at bill time from the stylist's rule (or,
+    // failing that, the service's). Snapshotting means a later rule change
+    // cannot retroactively rewrite what a stylist already earned. Commission is
+    // taken on the net (ex-GST) line value.
+    let commissionTotal = 0;
+    for (const line of computed.lines) {
+      let commissionAmount = 0;
+      if (line.staffId) {
+        const rule = await this.commissions.resolveRule(tx, {
+          staffId: line.staffId,
+          serviceId: line.serviceId ?? line.refId,
+          lineType: line.type,
+        });
+        if (rule) commissionAmount = lineCommission(rule, line.type, line.taxable);
+      }
+      commissionTotal += commissionAmount;
+
+      await tx.billLine.create({
+        data: {
+          id: crypto.randomUUID(),
+          tenantId: ctx.tenantId,
+          billId: payload.id,
+          type: line.type,
+          refId: line.refId ?? null,
+          name: line.name,
+          quantity: line.quantity,
+          unitPrice: line.unitPrice,
+          discount: line.discount ?? 0,
+          taxRate: line.taxRate,
+          staffId: line.staffId ?? null,
+          commissionAmount,
+        },
+      });
+    }
 
     if (payload.payments.length > 0) {
       await tx.payment.createMany({
@@ -160,6 +186,57 @@ export class BillCreateHandler extends OpHandler<BillCreatePayload> {
       });
     }
 
+    // --- Packages: redeem one session per package line ------------------
+    // A 'package' line draws a prepaid session down instead of charging money.
+    // The session ledger is debited; if it goes negative or the package has
+    // expired, that is surfaced as an exception rather than blocked, exactly
+    // like an overdraft — the front desk is never stopped mid-bill.
+    for (const line of computed.lines) {
+      if (line.type !== 'package' || !line.refId || !payload.customerId) continue;
+      const serviceId = line.serviceId ?? null;
+      await tx.sessionLedger.create({
+        data: {
+          id: crypto.randomUUID(),
+          tenantId: ctx.tenantId,
+          customerId: payload.customerId,
+          packageId: line.refId,
+          serviceId,
+          delta: -line.quantity,
+          billId: payload.id,
+          terminalId: op.terminalId,
+          opId: op.opId,
+        },
+      });
+
+      const { _sum } = await tx.sessionLedger.aggregate({
+        _sum: { delta: true },
+        where: { customerId: payload.customerId, packageId: line.refId },
+      });
+      const remaining = _sum.delta ?? 0;
+
+      const held = await tx.customerPackage.findFirst({
+        where: { customerId: payload.customerId, packageId: line.refId },
+        orderBy: { purchasedAt: 'desc' },
+      });
+      const expired = held?.expiresAt ? held.expiresAt.getTime() < createdAt.getTime() : false;
+
+      if (remaining < 0 || expired) {
+        await tx.syncException.create({
+          data: {
+            tenantId: ctx.tenantId,
+            type: expired ? 'expired_package' : 'negative_sessions',
+            detail: {
+              customerId: payload.customerId,
+              packageId: line.refId,
+              billId: payload.id,
+              remaining,
+              expired,
+            },
+          },
+        });
+      }
+    }
+
     // --- Wallet: redemption, advance and/or due -------------------------
     for (const effect of walletEffects) {
       await tx.walletLedger.create({
@@ -188,12 +265,25 @@ export class BillCreateHandler extends OpHandler<BillCreatePayload> {
       });
     }
 
+    await this.audit.record(tx, ctx, {
+      action: 'bill.create',
+      entity: 'bill',
+      entityId: payload.id,
+      after: {
+        invoiceNo: payload.invoiceNo,
+        total: computed.total,
+        commission: commissionTotal,
+        customerId: payload.customerId ?? null,
+      },
+    });
+
     return {
       ok: true,
       entity: 'bill',
       id: payload.id,
       invoiceNo: payload.invoiceNo,
       total: computed.total,
+      commission: commissionTotal,
     };
   }
 }

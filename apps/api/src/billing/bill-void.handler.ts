@@ -5,6 +5,7 @@ import { OpHandler, type OpMeta, type OpResult } from '../sync/op-handler.js';
 import type { PrismaTx } from '../prisma.service.js';
 import type { TenantCtx } from '../tenant-context.js';
 import { LedgerService } from './ledger.service.js';
+import { AuditService } from '../audit/audit.service.js';
 
 export const billVoidPayload = z.object({
   billId: z.uuid(),
@@ -30,13 +31,16 @@ export class BillVoidHandler extends OpHandler<BillVoidPayload> {
   readonly requiredFeatures: readonly FeatureKey[] = ['billing'];
   readonly requiredPermissions: readonly Permission[] = ['bill.void'];
 
-  constructor(private readonly ledgers: LedgerService) {
+  constructor(
+    private readonly ledgers: LedgerService,
+    private readonly audit: AuditService,
+  ) {
     super();
   }
 
   async apply(
     tx: PrismaTx,
-    _ctx: TenantCtx,
+    ctx: TenantCtx,
     payload: BillVoidPayload,
     op: OpMeta,
   ): Promise<OpResult> {
@@ -53,6 +57,14 @@ export class BillVoidHandler extends OpHandler<BillVoidPayload> {
       opId: op.opId,
       terminalId: op.terminalId,
       reason: `void: ${payload.reason}`,
+    });
+
+    await this.audit.record(tx, ctx, {
+      action: 'bill.void',
+      entity: 'bill',
+      entityId: bill.id,
+      before: { status: bill.status, total: bill.total },
+      after: { status: 'void', reason: payload.reason },
     });
 
     return { ok: true, entity: 'bill', id: bill.id, status: 'void' };

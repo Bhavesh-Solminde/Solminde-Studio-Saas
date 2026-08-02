@@ -4,6 +4,7 @@ import type { FeatureKey, Permission } from '@salon/shared';
 import { OpHandler, type OpMeta, type OpResult } from '../sync/op-handler.js';
 import type { PrismaTx } from '../prisma.service.js';
 import type { TenantCtx } from '../tenant-context.js';
+import { AuditService } from '../audit/audit.service.js';
 
 export const walletTopupPayload = z.object({
   customerId: z.uuid(),
@@ -27,6 +28,10 @@ export class WalletTopupHandler extends OpHandler<WalletTopupPayload> {
   readonly requiredFeatures: readonly FeatureKey[] = ['billing'];
   readonly requiredPermissions: readonly Permission[] = ['bill.create'];
 
+  constructor(private readonly audit: AuditService) {
+    super();
+  }
+
   async apply(
     tx: PrismaTx,
     ctx: TenantCtx,
@@ -44,6 +49,14 @@ export class WalletTopupHandler extends OpHandler<WalletTopupPayload> {
         opId: op.opId,
       },
     });
+
+    await this.audit.record(tx, ctx, {
+      action: 'wallet.topup',
+      entity: 'wallet_ledger',
+      entityId: entry.id,
+      after: { customerId: payload.customerId, amount: payload.amount },
+    });
+
     return { ok: true, entity: 'wallet_ledger', id: entry.id };
   }
 }

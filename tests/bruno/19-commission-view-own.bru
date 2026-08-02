@@ -1,0 +1,35 @@
+meta {
+  name: Commission Summary (view_own)
+  type: http
+  seq: 19
+}
+
+get {
+  url: {{baseUrl}}/api/commissions/summary
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{stylistToken}}
+}
+
+assert {
+  res.status: eq 200
+}
+
+tests {
+  test("a view_own stylist sees exactly one row — their own", function () {
+    expect(res.body.scope).to.equal("own");
+    expect(res.body.rows).to.have.lengthOf(1);
+    // The seeded stylist is linked to staff dddddddd-...-000000000001.
+    expect(res.body.rows[0].staffId).to.equal("dddddddd-0000-4000-8000-000000000001");
+  });
+}
+
+docs {
+  Hiding other stylists' numbers in the UI is not access control — the server
+  computes and returns only the requester's own row. commission.view_all vs
+  commission.view_own is the split that keeps colleagues' earnings private, and
+  it is enforced here, on every read.
+}

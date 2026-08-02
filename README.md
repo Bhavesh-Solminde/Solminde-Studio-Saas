@@ -58,9 +58,9 @@ the build if this ever regresses.
 ## Testing
 
 ```bash
-pnpm test:unit   # node:test — GST/bill maths, wallet settlement, invoice numbering
-pnpm test:api    # Bruno — auth, sync, idempotency, tenant isolation, billing, void
-pnpm test:e2e    # Playwright — the Stage 1 and Stage 2 offline gates
+pnpm test:unit   # node:test — GST/bill maths, wallet settlement, commissions
+pnpm test:api    # Bruno — auth, sync, isolation, billing, packages, commissions
+pnpm test:e2e    # Playwright — the Stage 1, 2 and 3 offline gates
 pnpm test        # all three
 ```
 
@@ -112,7 +112,19 @@ packages/
   ledgers balance exactly, and a replayed op creates no duplicate and no double
   charge.
 
-- **Stage 3 — Commissions and packages.** Next.
+- **Stage 3 — Commissions and packages.** Complete and verified against Supabase.
+  Commission engine (flat, service-vs-retail split, slabs, target bonus) shared
+  by POS and API, per-line commission snapshotted at bill time and rolled up at
+  read time, `commission.view_own` / `view_all` enforced server-side, prepaid
+  packages and session courses on the `SessionLedger` with redemption at billing
+  and expiry surfaced as exceptions, memberships wired to the `WalletLedger`, and
+  the audit log populated across every money operation.
+
+  **Gate passed:** two stylists on different commission structures bill the same
+  service offline; on sync each earns the correct, separate number, and a stylist
+  logging in sees only their own — never a colleague's.
+
+- **Stage 4 — Appointments and reach.** Next.
 
 ## Licence
 

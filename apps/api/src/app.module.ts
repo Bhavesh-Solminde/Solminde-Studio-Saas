@@ -20,6 +20,11 @@ import { BillCreateHandler } from './billing/bill-create.handler.js';
 import { BillVoidHandler } from './billing/bill-void.handler.js';
 import { WalletTopupHandler } from './billing/wallet-topup.handler.js';
 import { DayCloseHandler } from './billing/day-close.handler.js';
+import { PackagePurchaseHandler } from './billing/package-purchase.handler.js';
+import { MembershipPurchaseHandler } from './billing/membership-purchase.handler.js';
+import { AuditService } from './audit/audit.service.js';
+import { CommissionService } from './commissions/commission.service.js';
+import { CommissionsController } from './commissions/commissions.controller.js';
 
 @Controller()
 class HealthController {
@@ -33,7 +38,7 @@ class HealthController {
   @Get('health')
   async health() {
     await this.prisma.$queryRaw`SELECT 1`;
-    return { ok: true, stage: 2 };
+    return { ok: true, stage: 3 };
   }
 }
 
@@ -48,10 +53,18 @@ const OP_HANDLERS = [
   BillVoidHandler,
   WalletTopupHandler,
   DayCloseHandler,
+  PackagePurchaseHandler,
+  MembershipPurchaseHandler,
 ];
 
 @Module({
-  controllers: [HealthController, AuthController, SyncController, BillingController],
+  controllers: [
+    HealthController,
+    AuthController,
+    SyncController,
+    BillingController,
+    CommissionsController,
+  ],
   providers: [
     PrismaService,
     AuthService,
@@ -60,6 +73,8 @@ const OP_HANDLERS = [
     PermissionsService,
     LedgerService,
     InvoiceLeaseService,
+    AuditService,
+    CommissionService,
     SyncService,
     ...OP_HANDLERS,
     {

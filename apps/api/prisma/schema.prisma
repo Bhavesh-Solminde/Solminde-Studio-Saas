@@ -270,6 +270,40 @@ model Membership {
   @@map("memberships")
 }
 
+/// A commission structure, attached to a service (Service.commissionRuleId) or,
+/// taking precedence, to a stylist (Staff.commissionRuleId).
+///
+/// Supports the four shapes owners actually ask for: a flat percentage, a
+/// separate service-vs-retail split, revenue slabs, and a monthly target bonus.
+/// Per-line commission is snapshotted onto BillLine at bill time from the flat
+/// split; slab and target amounts depend on a whole period's revenue and are
+/// therefore derived at read time in the commission summary.
+model CommissionRule {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @db.Uuid
+  name     String
+  // 'flat' | 'slab'. 'flat' uses serviceRate/retailRate per line; 'slab' derives
+  // the rate at read time from where period revenue lands in `slabs`.
+  kind     String @default("flat")
+  /// Percent of a service line's net (ex-GST) value. Decimal(5,2), e.g. 30.00.
+  serviceRate Decimal @default(0) @db.Decimal(5, 2)
+  /// Percent of a product/retail line's net value — the retail split.
+  retailRate  Decimal @default(0) @db.Decimal(5, 2)
+  /// Ascending tiers as JSON: [{ "uptoPaise": number|null, "rate": number }].
+  /// The last tier's uptoPaise is null (open-ended). Used only when kind='slab'.
+  slabs       Json?
+  /// { "targetPaise": number, "bonusPaise": number } — flat bonus once a
+  /// stylist's period net revenue reaches the target.
+  targetBonus Json?
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  rowVersion  Int      @default(0)
+
+  @@index([tenantId])
+  @@map("commission_rules")
+}
+
 // ------------------------------------------------------ people & scheduling
 
 model Customer {

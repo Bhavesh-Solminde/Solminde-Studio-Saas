@@ -35,7 +35,7 @@ DECLARE
     'locations', 'users', 'terminals', 'refresh_tokens',
     'tenant_features', 'audit_log',
     'service_categories', 'services', 'products', 'packages', 'package_items',
-    'memberships',
+    'memberships', 'commission_rules',
     'customers', 'staff', 'attendance', 'resources', 'appointments',
     'bills', 'bill_lines', 'payments', 'expenses', 'invoice_leases', 'day_closes',
     'wallet_ledger', 'stock_ledger', 'session_ledger', 'customer_packages',

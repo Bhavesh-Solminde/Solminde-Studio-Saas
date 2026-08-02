@@ -55,6 +55,16 @@ async function main() {
       // Fixed catalogue ids so the billing tests can reference them directly.
       serviceId: 'aaaaaaaa-0000-4000-8000-000000000001',
       productId: 'bbbbbbbb-0000-4000-8000-000000000001',
+      // Stage 3: two stylists on DIFFERENT commission rules, so a test can bill
+      // the same service under each and prove the numbers stay separate.
+      ruleAId: 'cccccccc-0000-4000-8000-000000000001',
+      ruleBId: 'cccccccc-0000-4000-8000-000000000002',
+      staffAId: 'dddddddd-0000-4000-8000-000000000001',
+      staffBId: 'dddddddd-0000-4000-8000-000000000002',
+      stylistAPhone: '9000000010',
+      stylistBPhone: '9000000011',
+      packageId: 'eeeeeeee-0000-4000-8000-000000000001',
+      membershipId: 'ffffffff-0000-4000-8000-000000000001',
     },
     {
       id: '22222222-2222-4222-8222-222222222222',
@@ -64,8 +74,21 @@ async function main() {
       password: 'rival-dev-password',
       serviceId: 'aaaaaaaa-0000-4000-8000-000000000002',
       productId: 'bbbbbbbb-0000-4000-8000-000000000002',
+      ruleAId: 'cccccccc-0000-4000-8000-000000000003',
+      ruleBId: 'cccccccc-0000-4000-8000-000000000004',
+      staffAId: 'dddddddd-0000-4000-8000-000000000003',
+      staffBId: 'dddddddd-0000-4000-8000-000000000004',
+      stylistAPhone: '9000000020',
+      stylistBPhone: '9000000021',
+      packageId: 'eeeeeeee-0000-4000-8000-000000000002',
+      membershipId: 'ffffffff-0000-4000-8000-000000000002',
     },
   ];
+
+  // Stylists log in with one shared dev password; the point of the seed is the
+  // two different commission rules, not credential variety.
+  const stylistPassword = 'stylist-dev-password';
+  const stylistHash = await hash(stylistPassword);
 
   for (const spec of specs) {
     const passwordHash = await hash(spec.password);
@@ -166,9 +189,115 @@ async function main() {
           },
         });
       }
+
+      // Two flat commission rules on different service rates: 30% and 40%.
+      await tx.commissionRule.upsert({
+        where: { id: spec.ruleAId },
+        create: {
+          id: spec.ruleAId,
+          tenantId: spec.id,
+          name: 'Junior — 30% service',
+          kind: 'flat',
+          serviceRate: 30,
+          retailRate: 10,
+        },
+        update: { serviceRate: 30, retailRate: 10 },
+      });
+      await tx.commissionRule.upsert({
+        where: { id: spec.ruleBId },
+        create: {
+          id: spec.ruleBId,
+          tenantId: spec.id,
+          name: 'Senior — 40% service',
+          kind: 'flat',
+          serviceRate: 40,
+          retailRate: 15,
+        },
+        update: { serviceRate: 40, retailRate: 15 },
+      });
+
+      // A Stylist role: can bill and see OWN commission, but never everyone's.
+      // commission.view_all is the permission that starts salon-floor fights.
+      const stylistRole =
+        (await tx.role.findFirst({ where: { tenantId: spec.id, name: 'Stylist' } })) ??
+        (await tx.role.create({
+          data: {
+            id: randomUUID(),
+            tenantId: spec.id,
+            name: 'Stylist',
+            permissions: ['bill.create', 'customer.view', 'commission.view_own'],
+            isSystem: true,
+          },
+        }));
+
+      // Two stylist users, each linked to a staff record on a different rule.
+      const stylists = [
+        { phone: spec.stylistAPhone, staffId: spec.staffAId, ruleId: spec.ruleAId, name: 'Asha' },
+        { phone: spec.stylistBPhone, staffId: spec.staffBId, ruleId: spec.ruleBId, name: 'Bhavna' },
+      ];
+      for (const stylist of stylists) {
+        const user = await tx.user.upsert({
+          where: { tenantId_phone: { tenantId: spec.id, phone: stylist.phone } },
+          create: {
+            tenantId: spec.id,
+            name: stylist.name,
+            phone: stylist.phone,
+            passwordHash: stylistHash,
+            roleId: stylistRole.id,
+          },
+          update: { roleId: stylistRole.id },
+        });
+        await tx.staff.upsert({
+          where: { id: stylist.staffId },
+          create: {
+            id: stylist.staffId,
+            tenantId: spec.id,
+            userId: user.id,
+            displayName: stylist.name,
+            commissionRuleId: stylist.ruleId,
+          },
+          update: { userId: user.id, commissionRuleId: stylist.ruleId },
+        });
+      }
+
+      // A prepaid package (5 haircuts, valid 180 days) on the session ledger,
+      // and a membership that credits the wallet on purchase.
+      await tx.package.upsert({
+        where: { id: spec.packageId },
+        create: {
+          id: spec.packageId,
+          tenantId: spec.id,
+          name: '5 Haircuts',
+          price: 200000,
+          validityDays: 180,
+        },
+        update: { price: 200000 },
+      });
+      await tx.packageItem.upsert({
+        where: { packageId_serviceId: { packageId: spec.packageId, serviceId: spec.serviceId } },
+        create: {
+          tenantId: spec.id,
+          packageId: spec.packageId,
+          serviceId: spec.serviceId,
+          quantity: 5,
+        },
+        update: { quantity: 5 },
+      });
+      await tx.membership.upsert({
+        where: { id: spec.membershipId },
+        create: {
+          id: spec.membershipId,
+          tenantId: spec.id,
+          name: 'Gold',
+          price: 500000,
+          walletCredit: 600000,
+        },
+        update: { walletCredit: 600000 },
+      });
     });
 
     console.log(`Seeded ${spec.slug} — login ${spec.phone} / ${spec.password}`);
+    console.log(`  stylists ${spec.stylistAPhone} & ${spec.stylistBPhone} / ${stylistPassword}`);
   }
 }
 

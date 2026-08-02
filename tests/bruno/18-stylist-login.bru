@@ -1,0 +1,34 @@
+meta {
+  name: Stylist Login
+  type: http
+  seq: 18
+}
+
+post {
+  url: {{baseUrl}}/api/auth/login
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "tenantSlug": "{{tenantSlug}}",
+    "phone": "9000000010",
+    "password": "stylist-dev-password"
+  }
+}
+
+script:post-response {
+  bru.setEnvVar("stylistToken", res.body.accessToken);
+}
+
+assert {
+  res.status: eq 201
+}
+
+tests {
+  test("stylist authenticates and does NOT hold commission.view_all", function () {
+    expect(res.body.localSession.permissions).to.include("commission.view_own");
+    expect(res.body.localSession.permissions).to.not.include("commission.view_all");
+  });
+}

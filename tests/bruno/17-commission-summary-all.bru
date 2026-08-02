@@ -1,0 +1,28 @@
+meta {
+  name: Commission Summary (view_all)
+  type: http
+  seq: 17
+}
+
+get {
+  url: {{baseUrl}}/api/commissions/summary
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer {{accessToken}}
+}
+
+assert {
+  res.status: eq 200
+}
+
+tests {
+  test("owner holds commission.view_all, so scope is every stylist", function () {
+    expect(res.body.scope).to.equal("all");
+    expect(res.body.rows).to.be.an("array");
+    // The two seeded stylists both appear.
+    expect(res.body.rows.length).to.be.greaterThan(1);
+  });
+}
