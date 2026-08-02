@@ -37,12 +37,31 @@ pnpm dev:api   # http://localhost:3001  — API
 Database setup:
 
 ```bash
-pnpm --filter @salon/api prisma:migrate   # create/apply migrations
-pnpm --filter @salon/api rls:apply        # apply row-level security policies
+pnpm --filter @salon/api prisma:migrate       # create/apply migrations
+pnpm --filter @salon/api create-app-role      # create the NOBYPASSRLS app role
+pnpm --filter @salon/api rls:apply            # row-level security policies
+pnpm --filter @salon/api sql:apply            # auth lookup functions
+pnpm --filter @salon/api db:seed              # two tenants, for isolation tests
+pnpm --filter @salon/api verify:isolation     # prove isolation actually holds
 ```
 
 `rls:apply` must be re-run after any `migrate reset`, which drops the policies along
 with the tables.
+
+**The application must not connect as `postgres`.** Supabase's default role has
+`rolbypassrls = true`, which skips every RLS policy — including tables marked FORCE ROW
+LEVEL SECURITY — and nothing visibly breaks until one salon sees another salon's data.
+`create-app-role` provisions `salon_app` (NOBYPASSRLS, owns nothing) for `DATABASE_URL`;
+`DIRECT_URL` stays as `postgres` for migrations and DDL only. `verify:isolation` fails
+the build if this ever regresses.
+
+## Testing
+
+```bash
+pnpm test:api    # Bruno — auth, sync, idempotency, tenant isolation
+pnpm test:e2e    # Playwright — the Stage 1 offline gate
+pnpm test        # both
+```
 
 ## Two rules that govern everything
 
@@ -71,13 +90,15 @@ packages/
 ## Build status
 
 - **Stage 0 — Repo and rails.** Complete. All three apps boot from one `pnpm install`.
-- **Stage 1 — Foundation.** In progress: RLS, tenant context, auth with the offline
-  session split, RBAC, entitlements, the outbox and `OpHandler` registry, and customers
-  end-to-end.
+- **Stage 1 — Foundation.** Complete and verified against Supabase (`ap-south-1`). RLS
+  enforced on 35 tables, tenant context via AsyncLocalStorage, auth with the offline
+  session split, RBAC, entitlements with dependency checks, the Dexie outbox, the
+  `OpHandler` registry, and customers end-to-end.
 
-Stage 1's exit criterion is the gate for the whole project: create a customer with WiFi
-off on device A, turn WiFi on, and it appears on device B — with the same `op_id`
-delivered twice producing no duplicate row.
+  **Gate passed:** a customer created with WiFi off on device A appears on device B after
+  reconnect, and the same `op_id` delivered twice produces no duplicate row.
+
+- **Stage 2 — Offline billing.** Next. The revenue surface.
 
 ## Licence
 

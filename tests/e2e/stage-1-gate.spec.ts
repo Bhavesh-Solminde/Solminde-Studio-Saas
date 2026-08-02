@@ -10,7 +10,11 @@ import { test, expect, type BrowserContext, type Page } from '@playwright/test';
  * for two terminals: separate IndexedDB, separate outboxes, one server.
  */
 
-const TENANT = { slug: 'acme-salon', phone: '9000000001', password: 'frontdesk-dev-password' };
+const TENANT = {
+  tenantSlug: 'acme-salon',
+  phone: '9000000001',
+  password: 'frontdesk-dev-password',
+};
 
 async function openTerminal(context: BrowserContext, terminalId: string): Promise<Page> {
   const page = await context.newPage();

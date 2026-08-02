@@ -11,7 +11,10 @@
     "prisma:migrate": "prisma migrate dev",
     "rls:apply": "node scripts/apply-rls.mjs",
     "db:reset": "prisma migrate reset --force && node scripts/apply-rls.mjs",
-    "db:seed": "tsx prisma/seed.ts"
+    "db:seed": "tsx prisma/seed.ts",
+    "verify:isolation": "node scripts/verify-isolation.mjs",
+    "sql:apply": "node scripts/apply-sql.mjs prisma/sql/auth-functions.sql",
+    "create-app-role": "node scripts/create-app-role.mjs"
   },
   "dependencies": {
     "@nestjs/common": "^11.1.28",
